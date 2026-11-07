@@ -1,9 +1,11 @@
 """
 Go AST symbol extractor using Tree-sitter.
 Extracts functions, methods (with receivers), structs, interfaces, imports, and calls.
+Links methods to their receiver structs and supports stable deterministic symbol IDs.
 """
 
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Set
+from collections import defaultdict
 import tree_sitter
 
 from backend.app.processing.models import (
@@ -37,17 +39,33 @@ class GoExtractor(BaseExtractor):
     ) -> ParsedFile:
         symbols: List[ExtractedSymbol] = []
         imports: List[ExtractedImport] = []
-        calls: List[ExtractedCall] = []
+        raw_calls: List[dict] = []
         inheritances: List[ExtractedInheritance] = []
         comments: List[ExtractedComment] = []
+        name_counts: Dict[str, int] = defaultdict(int)
 
         line_count = len(source_bytes.split(b"\n"))
         size_bytes = len(source_bytes)
         syntax_errors = self.collect_syntax_errors(root_node)
 
+        # First pass: Collect all struct/interface types so methods can link to them
+        type_symbol_ids: Dict[str, str] = {}
+
+        def _find_types(node: tree_sitter.Node):
+            for child in node.children:
+                if child.type == "type_declaration":
+                    self._handle_type_declaration(
+                        child, source_bytes, file_path, repo_id, symbols, name_counts, type_symbol_ids
+                    )
+            for child in node.children:
+                _find_types(child)
+
+        _find_types(root_node)
+
         def _traverse(
             node: tree_sitter.Node,
             enclosing_callable_id: Optional[str] = None,
+            parent_scope_name: Optional[str] = None,
             depth: int = 0,
         ):
             if depth > 100:
@@ -72,23 +90,28 @@ class GoExtractor(BaseExtractor):
                     )
                 )
 
-            # Type declarations (struct, interface)
+            # Skip type_declaration since already handled in first pass
             elif node_type == "type_declaration":
-                self._handle_type_declaration(node, source_bytes, file_path, repo_id, symbols)
                 return
 
             # Functions: func Foo()
             elif node_type == "function_declaration":
                 func_symbol = self._handle_function_declaration(
-                    node, source_bytes, file_path, repo_id, symbols
+                    node, source_bytes, file_path, repo_id, parent_scope_name, symbols, name_counts
                 )
                 if func_symbol:
                     body = self.find_child_by_field(node, "body")
                     if body:
+                        nested_scope = (
+                            f"{parent_scope_name}.{func_symbol.name}"
+                            if parent_scope_name
+                            else func_symbol.name
+                        )
                         for child in body.children:
                             _traverse(
                                 child,
                                 enclosing_callable_id=func_symbol.symbol_id,
+                                parent_scope_name=nested_scope,
                                 depth=depth + 1,
                             )
                 return
@@ -96,32 +119,63 @@ class GoExtractor(BaseExtractor):
             # Methods: func (r *Receiver) Method()
             elif node_type == "method_declaration":
                 method_symbol = self._handle_method_declaration(
-                    node, source_bytes, file_path, repo_id, symbols
+                    node, source_bytes, file_path, repo_id, type_symbol_ids, symbols, name_counts
                 )
                 if method_symbol:
                     body = self.find_child_by_field(node, "body")
                     if body:
+                        nested_scope = method_symbol.name
                         for child in body.children:
                             _traverse(
                                 child,
                                 enclosing_callable_id=method_symbol.symbol_id,
+                                parent_scope_name=nested_scope,
                                 depth=depth + 1,
                             )
                 return
 
             # Calls: call_expression
             elif node_type == "call_expression":
-                self._handle_call(node, source_bytes, file_path, enclosing_callable_id, calls)
+                self._handle_call(node, source_bytes, file_path, enclosing_callable_id, raw_calls)
 
             # Default recursive traversal
             for child in node.children:
                 _traverse(
                     child,
                     enclosing_callable_id=enclosing_callable_id,
+                    parent_scope_name=parent_scope_name,
                     depth=depth + 1,
                 )
 
         _traverse(root_node)
+
+        # Post-traversal resolution: Classify call confirmation status
+        local_symbol_names: Set[str] = {s.name for s in symbols}
+        imported_symbol_names: Set[str] = set()
+        for imp in imports:
+            imported_symbol_names.add(imp.module)
+            imported_symbol_names.update(imp.imported_symbols)
+
+        calls: List[ExtractedCall] = []
+        for rc in raw_calls:
+            is_confirmed, res_status = self.classify_call_resolution(
+                callee_name=rc["callee_name"],
+                receiver=rc["receiver"],
+                local_symbols=local_symbol_names,
+                imported_symbols=imported_symbol_names,
+                is_constructor=rc.get("is_constructor", False),
+            )
+            calls.append(
+                ExtractedCall(
+                    caller_symbol_id=rc["caller_symbol_id"],
+                    callee_name=rc["callee_name"],
+                    receiver=rc["receiver"],
+                    location=rc["location"],
+                    is_confirmed=is_confirmed,
+                    resolution_status=res_status,
+                    is_constructor=rc.get("is_constructor", False),
+                )
+            )
 
         return ParsedFile(
             file_path=file_path,
@@ -191,6 +245,8 @@ class GoExtractor(BaseExtractor):
         file_path: str,
         repo_id: str,
         symbols: List[ExtractedSymbol],
+        name_counts: Dict[str, int],
+        type_symbol_ids: Dict[str, str],
     ) -> None:
         for child in node.children:
             if child.type == "type_spec":
@@ -209,10 +265,18 @@ class GoExtractor(BaseExtractor):
                 else:
                     sym_type = SymbolType.TYPE_ALIAS
 
-                symbol_id = self.generate_symbol_id(
-                    repo_id, file_path, type_name, sym_type.value, loc.start_line
+                symbol_id = self.get_scoped_symbol_id(
+                    repo_id=repo_id,
+                    file_path=file_path,
+                    name=type_name,
+                    symbol_type=sym_type.value,
+                    parent_scope=None,
+                    name_counts=name_counts,
                 )
+                type_symbol_ids[type_name] = symbol_id
+
                 source_code = self.get_text(child, source_bytes)
+                content_hash = self.compute_content_hash(source_code)
 
                 symbols.append(
                     ExtractedSymbol(
@@ -221,6 +285,7 @@ class GoExtractor(BaseExtractor):
                         symbol_type=sym_type,
                         location=loc,
                         source_code=source_code,
+                        content_hash=content_hash,
                     )
                 )
 
@@ -230,7 +295,9 @@ class GoExtractor(BaseExtractor):
         source_bytes: bytes,
         file_path: str,
         repo_id: str,
+        parent_scope_name: Optional[str],
         symbols: List[ExtractedSymbol],
+        name_counts: Dict[str, int],
     ) -> Optional[ExtractedSymbol]:
         name_node = self.find_child_by_field(node, "name")
         if not name_node:
@@ -238,8 +305,13 @@ class GoExtractor(BaseExtractor):
 
         func_name = self.get_text(name_node, source_bytes).strip()
         loc = self.get_location(node, file_path)
-        symbol_id = self.generate_symbol_id(
-            repo_id, file_path, func_name, "FUNCTION", loc.start_line
+        symbol_id = self.get_scoped_symbol_id(
+            repo_id=repo_id,
+            file_path=file_path,
+            name=func_name,
+            symbol_type="FUNCTION",
+            parent_scope=parent_scope_name,
+            name_counts=name_counts,
         )
 
         parameters: List[str] = []
@@ -257,6 +329,7 @@ class GoExtractor(BaseExtractor):
             return_type = self.get_text(res_node, source_bytes).strip()
 
         source_code = self.get_text(node, source_bytes)
+        content_hash = self.compute_content_hash(source_code)
         first_line = source_code.split("\n")[0].strip()
 
         symbol = ExtractedSymbol(
@@ -265,6 +338,7 @@ class GoExtractor(BaseExtractor):
             symbol_type=SymbolType.FUNCTION,
             location=loc,
             source_code=source_code,
+            content_hash=content_hash,
             signature=first_line,
             return_type=return_type,
             parameters=parameters,
@@ -278,7 +352,9 @@ class GoExtractor(BaseExtractor):
         source_bytes: bytes,
         file_path: str,
         repo_id: str,
+        type_symbol_ids: Dict[str, str],
         symbols: List[ExtractedSymbol],
+        name_counts: Dict[str, int],
     ) -> Optional[ExtractedSymbol]:
         name_node = self.find_child_by_field(node, "name")
         if not name_node:
@@ -291,15 +367,20 @@ class GoExtractor(BaseExtractor):
         receiver_type = ""
         if receiver_node:
             recv_text = self.get_text(receiver_node, source_bytes).strip("()")
-            # Extract type e.g. "*User" -> "User"
             parts = recv_text.split()
             if len(parts) >= 2:
                 receiver_type = parts[1].replace("*", "").strip()
             elif parts:
                 receiver_type = parts[0].replace("*", "").strip()
 
-        symbol_id = self.generate_symbol_id(
-            repo_id, file_path, method_name, "METHOD", loc.start_line, receiver_type or None
+        parent_symbol_id = type_symbol_ids.get(receiver_type)
+        symbol_id = self.get_scoped_symbol_id(
+            repo_id=repo_id,
+            file_path=file_path,
+            name=method_name,
+            symbol_type="METHOD",
+            parent_scope=receiver_type or None,
+            name_counts=name_counts,
         )
 
         parameters: List[str] = []
@@ -317,6 +398,7 @@ class GoExtractor(BaseExtractor):
             return_type = self.get_text(res_node, source_bytes).strip()
 
         source_code = self.get_text(node, source_bytes)
+        content_hash = self.compute_content_hash(source_code)
         first_line = source_code.split("\n")[0].strip()
 
         symbol = ExtractedSymbol(
@@ -325,6 +407,8 @@ class GoExtractor(BaseExtractor):
             symbol_type=SymbolType.METHOD,
             location=loc,
             source_code=source_code,
+            content_hash=content_hash,
+            parent_symbol_id=parent_symbol_id,
             signature=first_line,
             return_type=return_type,
             parameters=parameters,
@@ -339,7 +423,7 @@ class GoExtractor(BaseExtractor):
         source_bytes: bytes,
         file_path: str,
         enclosing_callable_id: Optional[str],
-        calls: List[ExtractedCall],
+        raw_calls: List[dict],
     ) -> None:
         func_node = self.find_child_by_field(node, "function")
         if not func_node:
@@ -362,13 +446,10 @@ class GoExtractor(BaseExtractor):
             callee_name = self.get_text(func_node, source_bytes).strip()
 
         if callee_name:
-            calls.append(
-                ExtractedCall(
-                    caller_symbol_id=enclosing_callable_id,
-                    callee_name=callee_name,
-                    receiver=receiver,
-                    location=loc,
-                    is_confirmed=False,
-                )
-            )
-
+            raw_calls.append({
+                "caller_symbol_id": enclosing_callable_id,
+                "callee_name": callee_name,
+                "receiver": receiver,
+                "location": loc,
+                "is_constructor": False,
+            })

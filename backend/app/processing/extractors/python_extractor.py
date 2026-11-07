@@ -1,9 +1,11 @@
 """
 Python AST symbol extractor using Tree-sitter.
 Extracts functions, methods, classes, base classes, imports, function calls, and docstrings.
+Supports arbitrary nesting (closures, nested classes) and stable deterministic symbol IDs.
 """
 
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Set
+from collections import defaultdict
 import tree_sitter
 
 from backend.app.processing.models import (
@@ -37,20 +39,22 @@ class PythonExtractor(BaseExtractor):
     ) -> ParsedFile:
         symbols: List[ExtractedSymbol] = []
         imports: List[ExtractedImport] = []
-        calls: List[ExtractedCall] = []
+        raw_calls: List[dict] = []
         inheritances: List[ExtractedInheritance] = []
         comments: List[ExtractedComment] = []
+        name_counts: Dict[str, int] = defaultdict(int)
 
         line_count = len(source_bytes.split(b"\n"))
         size_bytes = len(source_bytes)
         syntax_errors = self.collect_syntax_errors(root_node)
 
-        # Context tracker for parent classes and enclosing functions
+        # Context tracker for parent scopes (classes and functions)
         def _traverse(
             node: tree_sitter.Node,
-            parent_class_id: Optional[str] = None,
-            parent_class_name: Optional[str] = None,
+            parent_scope_id: Optional[str] = None,
+            parent_scope_name: Optional[str] = None,
             enclosing_callable_id: Optional[str] = None,
+            is_inside_class: bool = False,
             depth: int = 0,
         ):
             if depth > 100:
@@ -74,73 +78,120 @@ class PythonExtractor(BaseExtractor):
                         content=comment_text,
                         location=self.get_location(node, file_path),
                         is_docstring=False,
-                        associated_symbol_id=enclosing_callable_id or parent_class_id,
+                        associated_symbol_id=enclosing_callable_id or parent_scope_id,
                     )
                 )
 
-            # Classes
+            # Classes (supports top-level and nested classes)
             elif node_type == "class_definition":
                 class_symbol = self._handle_class_definition(
                     node,
                     source_bytes,
                     file_path,
                     repo_id,
-                    parent_class_name,
+                    parent_scope_id,
+                    parent_scope_name,
                     symbols,
                     inheritances,
+                    name_counts,
                 )
                 if class_symbol:
                     body = self.find_child_by_field(node, "body")
                     if body:
+                        nested_scope_name = (
+                            f"{parent_scope_name}.{class_symbol.name}"
+                            if parent_scope_name
+                            else class_symbol.name
+                        )
                         for child in body.children:
                             _traverse(
                                 child,
-                                parent_class_id=class_symbol.symbol_id,
-                                parent_class_name=class_symbol.name,
+                                parent_scope_id=class_symbol.symbol_id,
+                                parent_scope_name=nested_scope_name,
                                 enclosing_callable_id=None,
+                                is_inside_class=True,
                                 depth=depth + 1,
                             )
                 return
 
-            # Functions / Methods
+            # Functions / Methods / Closures
             elif node_type in ("function_definition", "async_function_definition"):
                 func_symbol = self._handle_function_definition(
                     node,
                     source_bytes,
                     file_path,
                     repo_id,
-                    parent_class_id,
-                    parent_class_name,
+                    parent_scope_id,
+                    parent_scope_name,
+                    is_inside_class,
                     symbols,
+                    name_counts,
                 )
                 if func_symbol:
                     body = self.find_child_by_field(node, "body")
                     if body:
+                        nested_scope_name = (
+                            f"{parent_scope_name}.{func_symbol.name}"
+                            if parent_scope_name
+                            else func_symbol.name
+                        )
                         for child in body.children:
                             _traverse(
                                 child,
-                                parent_class_id=parent_class_id,
-                                parent_class_name=parent_class_name,
+                                parent_scope_id=func_symbol.symbol_id,
+                                parent_scope_name=nested_scope_name,
                                 enclosing_callable_id=func_symbol.symbol_id,
+                                is_inside_class=False,
                                 depth=depth + 1,
                             )
                 return
 
             # Function / Method calls
             elif node_type == "call":
-                self._handle_call(node, source_bytes, file_path, enclosing_callable_id, calls)
+                self._handle_call(node, source_bytes, file_path, enclosing_callable_id, raw_calls)
 
             # Traverse child nodes
             for child in node.children:
                 _traverse(
                     child,
-                    parent_class_id=parent_class_id,
-                    parent_class_name=parent_class_name,
+                    parent_scope_id=parent_scope_id,
+                    parent_scope_name=parent_scope_name,
                     enclosing_callable_id=enclosing_callable_id,
+                    is_inside_class=is_inside_class,
                     depth=depth + 1,
                 )
 
         _traverse(root_node)
+
+        # Post-traversal resolution: Classify call confirmation status
+        local_symbol_names: Set[str] = {s.name for s in symbols}
+        imported_symbol_names: Set[str] = set()
+        for imp in imports:
+            imported_symbol_names.add(imp.module)
+            imported_symbol_names.update(imp.imported_symbols)
+            if imp.alias:
+                imported_symbol_names.add(imp.alias)
+
+        calls: List[ExtractedCall] = []
+        for rc in raw_calls:
+            is_confirmed, res_status = self.classify_call_resolution(
+                callee_name=rc["callee_name"],
+                receiver=rc["receiver"],
+                local_symbols=local_symbol_names,
+                imported_symbols=imported_symbol_names,
+                is_constructor=rc.get("is_constructor", False),
+            )
+            calls.append(
+                ExtractedCall(
+                    caller_symbol_id=rc["caller_symbol_id"],
+                    callee_name=rc["callee_name"],
+                    receiver=rc["receiver"],
+                    location=rc["location"],
+                    is_confirmed=is_confirmed,
+                    resolution_status=res_status,
+                    is_constructor=rc.get("is_constructor", False),
+                )
+            )
 
         return ParsedFile(
             file_path=file_path,
@@ -246,9 +297,11 @@ class PythonExtractor(BaseExtractor):
         source_bytes: bytes,
         file_path: str,
         repo_id: str,
-        parent_class_name: Optional[str],
+        parent_scope_id: Optional[str],
+        parent_scope_name: Optional[str],
         symbols: List[ExtractedSymbol],
         inheritances: List[ExtractedInheritance],
+        name_counts: Dict[str, int],
     ) -> Optional[ExtractedSymbol]:
         name_node = self.find_child_by_field(node, "name")
         if not name_node:
@@ -256,8 +309,14 @@ class PythonExtractor(BaseExtractor):
 
         class_name = self.get_text(name_node, source_bytes).strip()
         loc = self.get_location(node, file_path)
-        symbol_id = self.generate_symbol_id(
-            repo_id, file_path, class_name, "CLASS", loc.start_line, parent_class_name
+
+        symbol_id = self.get_scoped_symbol_id(
+            repo_id=repo_id,
+            file_path=file_path,
+            name=class_name,
+            symbol_type="CLASS",
+            parent_scope=parent_scope_name,
+            name_counts=name_counts,
         )
 
         # Extract base classes from superclasses / argument_list
@@ -277,13 +336,14 @@ class PythonExtractor(BaseExtractor):
                                 sub_symbol_id=symbol_id,
                                 super_name=base_name,
                                 relationship="INHERITS",
+                                is_confirmed=False,
                             )
                         )
 
         # Extract class docstring
         docstring = self._extract_docstring(node, source_bytes)
-
         source_code = self.get_text(node, source_bytes)
+        content_hash = self.compute_content_hash(source_code)
 
         symbol = ExtractedSymbol(
             symbol_id=symbol_id,
@@ -291,6 +351,8 @@ class PythonExtractor(BaseExtractor):
             symbol_type=SymbolType.CLASS,
             location=loc,
             source_code=source_code,
+            content_hash=content_hash,
+            parent_symbol_id=parent_scope_id,
             docstring=docstring,
             properties={"base_classes": base_classes},
         )
@@ -303,9 +365,11 @@ class PythonExtractor(BaseExtractor):
         source_bytes: bytes,
         file_path: str,
         repo_id: str,
-        parent_class_id: Optional[str],
-        parent_class_name: Optional[str],
+        parent_scope_id: Optional[str],
+        parent_scope_name: Optional[str],
+        is_inside_class: bool,
         symbols: List[ExtractedSymbol],
+        name_counts: Dict[str, int],
     ) -> Optional[ExtractedSymbol]:
         name_node = self.find_child_by_field(node, "name")
         if not name_node:
@@ -314,15 +378,14 @@ class PythonExtractor(BaseExtractor):
         func_name = self.get_text(name_node, source_bytes).strip()
         loc = self.get_location(node, file_path)
 
-        is_method = parent_class_id is not None
-        symbol_type = SymbolType.METHOD if is_method else SymbolType.FUNCTION
-        symbol_id = self.generate_symbol_id(
-            repo_id,
-            file_path,
-            func_name,
-            symbol_type.value,
-            loc.start_line,
-            parent_class_name,
+        symbol_type = SymbolType.METHOD if is_inside_class else SymbolType.FUNCTION
+        symbol_id = self.get_scoped_symbol_id(
+            repo_id=repo_id,
+            file_path=file_path,
+            name=func_name,
+            symbol_type=symbol_type.value,
+            parent_scope=parent_scope_name,
+            name_counts=name_counts,
         )
 
         # Extract parameters
@@ -350,8 +413,7 @@ class PythonExtractor(BaseExtractor):
             modifiers.append("async")
 
         source_code = self.get_text(node, source_bytes)
-
-        # Signature line
+        content_hash = self.compute_content_hash(source_code)
         first_line = source_code.split("\n")[0].strip() if source_code else f"def {func_name}()"
 
         symbol = ExtractedSymbol(
@@ -360,7 +422,8 @@ class PythonExtractor(BaseExtractor):
             symbol_type=symbol_type,
             location=loc,
             source_code=source_code,
-            parent_symbol_id=parent_class_id,
+            content_hash=content_hash,
+            parent_symbol_id=parent_scope_id,
             docstring=docstring,
             signature=first_line,
             return_type=return_type,
@@ -376,7 +439,7 @@ class PythonExtractor(BaseExtractor):
         source_bytes: bytes,
         file_path: str,
         enclosing_callable_id: Optional[str],
-        calls: List[ExtractedCall],
+        raw_calls: List[dict],
     ) -> None:
         func_node = self.find_child_by_field(node, "function")
         if not func_node:
@@ -399,15 +462,13 @@ class PythonExtractor(BaseExtractor):
             callee_name = self.get_text(func_node, source_bytes).strip()
 
         if callee_name:
-            calls.append(
-                ExtractedCall(
-                    caller_symbol_id=enclosing_callable_id,
-                    callee_name=callee_name,
-                    receiver=receiver,
-                    location=loc,
-                    is_confirmed=False,
-                )
-            )
+            raw_calls.append({
+                "caller_symbol_id": enclosing_callable_id,
+                "callee_name": callee_name,
+                "receiver": receiver,
+                "location": loc,
+                "is_constructor": False,
+            })
 
     def _extract_docstring(self, node: tree_sitter.Node, source_bytes: bytes) -> Optional[str]:
         body = self.find_child_by_field(node, "body")
@@ -419,7 +480,6 @@ class PythonExtractor(BaseExtractor):
             expr = first_stmt.children[0]
             if expr.type == "string":
                 text = self.get_text(expr, source_bytes).strip()
-                # Strip triple quotes
                 for quote in ('"""', "'''"):
                     if text.startswith(quote) and text.endswith(quote) and len(text) >= 6:
                         return text[3:-3].strip()
@@ -427,4 +487,3 @@ class PythonExtractor(BaseExtractor):
                     return text[1:-1].strip()
                 return text
         return None
-

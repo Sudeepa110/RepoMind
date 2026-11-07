@@ -1,9 +1,12 @@
 """
 JavaScript / TypeScript / TSX AST symbol extractor using Tree-sitter.
-Extracts functions, arrow functions, methods, classes, interfaces, inheritance, imports, and calls.
+Extracts functions, arrow functions, methods, classes, interfaces, inheritance, imports,
+constructor calls (new_expression), and regular calls.
+Supports arbitrary nesting, closures, and stable deterministic symbol IDs.
 """
 
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Set
+from collections import defaultdict
 import tree_sitter
 
 from backend.app.processing.models import (
@@ -37,9 +40,10 @@ class JavaScriptExtractor(BaseExtractor):
     ) -> ParsedFile:
         symbols: List[ExtractedSymbol] = []
         imports: List[ExtractedImport] = []
-        calls: List[ExtractedCall] = []
+        raw_calls: List[dict] = []
         inheritances: List[ExtractedInheritance] = []
         comments: List[ExtractedComment] = []
+        name_counts: Dict[str, int] = defaultdict(int)
 
         line_count = len(source_bytes.split(b"\n"))
         size_bytes = len(source_bytes)
@@ -47,9 +51,10 @@ class JavaScriptExtractor(BaseExtractor):
 
         def _traverse(
             node: tree_sitter.Node,
-            parent_class_id: Optional[str] = None,
-            parent_class_name: Optional[str] = None,
+            parent_scope_id: Optional[str] = None,
+            parent_scope_name: Optional[str] = None,
             enclosing_callable_id: Optional[str] = None,
+            is_inside_class: bool = False,
             depth: int = 0,
         ):
             if depth > 100:
@@ -61,30 +66,36 @@ class JavaScriptExtractor(BaseExtractor):
             if node_type == "import_statement":
                 self._handle_import(node, source_bytes, file_path, imports)
 
-            # CommonJS require: const x = require('y')
+            # CommonJS require & Arrow function assignment
             elif node_type == "variable_declarator":
                 self._check_require(node, source_bytes, file_path, imports)
-                # Check for arrow function assignment: const myFunc = () => {}
                 func_symbol = self._check_arrow_function_assignment(
                     node,
                     source_bytes,
                     file_path,
                     repo_id,
-                    parent_class_id,
-                    parent_class_name,
+                    parent_scope_id,
+                    parent_scope_name,
+                    is_inside_class,
                     symbols,
+                    name_counts,
                 )
                 if func_symbol:
-                    # Traverse function body
                     init_node = self.find_child_by_field(node, "value")
                     if init_node:
                         body_node = self.find_child_by_field(init_node, "body") or init_node
+                        nested_scope = (
+                            f"{parent_scope_name}.{func_symbol.name}"
+                            if parent_scope_name
+                            else func_symbol.name
+                        )
                         for child in body_node.children:
                             _traverse(
                                 child,
-                                parent_class_id=parent_class_id,
-                                parent_class_name=parent_class_name,
+                                parent_scope_id=func_symbol.symbol_id,
+                                parent_scope_name=nested_scope,
                                 enclosing_callable_id=func_symbol.symbol_id,
+                                is_inside_class=False,
                                 depth=depth + 1,
                             )
                     return
@@ -98,7 +109,7 @@ class JavaScriptExtractor(BaseExtractor):
                         content=comment_text,
                         location=self.get_location(node, file_path),
                         is_docstring=is_jsdoc,
-                        associated_symbol_id=enclosing_callable_id or parent_class_id,
+                        associated_symbol_id=enclosing_callable_id or parent_scope_id,
                     )
                 )
 
@@ -109,17 +120,27 @@ class JavaScriptExtractor(BaseExtractor):
                     source_bytes,
                     file_path,
                     repo_id,
+                    parent_scope_id,
+                    parent_scope_name,
                     symbols,
                     inheritances,
+                    name_counts,
                 )
                 if iface_symbol:
                     body = self.find_child_by_field(node, "body")
                     if body:
+                        nested_scope = (
+                            f"{parent_scope_name}.{iface_symbol.name}"
+                            if parent_scope_name
+                            else iface_symbol.name
+                        )
                         for child in body.children:
                             _traverse(
                                 child,
-                                parent_class_id=iface_symbol.symbol_id,
-                                parent_class_name=iface_symbol.name,
+                                parent_scope_id=iface_symbol.symbol_id,
+                                parent_scope_name=nested_scope,
+                                enclosing_callable_id=None,
+                                is_inside_class=False,
                                 depth=depth + 1,
                             )
                 return
@@ -131,18 +152,27 @@ class JavaScriptExtractor(BaseExtractor):
                     source_bytes,
                     file_path,
                     repo_id,
-                    parent_class_name,
+                    parent_scope_id,
+                    parent_scope_name,
                     symbols,
                     inheritances,
+                    name_counts,
                 )
                 if class_symbol:
                     body = self.find_child_by_field(node, "body")
                     if body:
+                        nested_scope = (
+                            f"{parent_scope_name}.{class_symbol.name}"
+                            if parent_scope_name
+                            else class_symbol.name
+                        )
                         for child in body.children:
                             _traverse(
                                 child,
-                                parent_class_id=class_symbol.symbol_id,
-                                parent_class_name=class_symbol.name,
+                                parent_scope_id=class_symbol.symbol_id,
+                                parent_scope_name=nested_scope,
+                                enclosing_callable_id=None,
+                                is_inside_class=True,
                                 depth=depth + 1,
                             )
                 return
@@ -154,15 +184,26 @@ class JavaScriptExtractor(BaseExtractor):
                     source_bytes,
                     file_path,
                     repo_id,
+                    parent_scope_id,
+                    parent_scope_name,
                     symbols,
+                    name_counts,
                 )
                 if func_symbol:
                     body = self.find_child_by_field(node, "body")
                     if body:
+                        nested_scope = (
+                            f"{parent_scope_name}.{func_symbol.name}"
+                            if parent_scope_name
+                            else func_symbol.name
+                        )
                         for child in body.children:
                             _traverse(
                                 child,
+                                parent_scope_id=func_symbol.symbol_id,
+                                parent_scope_name=nested_scope,
                                 enclosing_callable_id=func_symbol.symbol_id,
+                                is_inside_class=False,
                                 depth=depth + 1,
                             )
                 return
@@ -174,35 +215,47 @@ class JavaScriptExtractor(BaseExtractor):
                     source_bytes,
                     file_path,
                     repo_id,
-                    parent_class_id,
-                    parent_class_name,
+                    parent_scope_id,
+                    parent_scope_name,
                     symbols,
+                    name_counts,
                 )
                 if method_symbol:
                     body = self.find_child_by_field(node, "body")
                     if body:
+                        nested_scope = (
+                            f"{parent_scope_name}.{method_symbol.name}"
+                            if parent_scope_name
+                            else method_symbol.name
+                        )
                         for child in body.children:
                             _traverse(
                                 child,
-                                parent_class_id=parent_class_id,
-                                parent_class_name=parent_class_name,
+                                parent_scope_id=method_symbol.symbol_id,
+                                parent_scope_name=nested_scope,
                                 enclosing_callable_id=method_symbol.symbol_id,
+                                is_inside_class=False,
                                 depth=depth + 1,
                             )
                 return
 
             # Function / Method calls
             elif node_type == "call_expression":
-                self._handle_call(node, source_bytes, file_path, enclosing_callable_id, calls)
+                self._handle_call(node, source_bytes, file_path, enclosing_callable_id, raw_calls)
+
+            # Constructor calls: new UserService()
+            elif node_type == "new_expression":
+                self._handle_new_expression(node, source_bytes, file_path, enclosing_callable_id, raw_calls)
 
             # Export statement wrapper (e.g. export default function ...)
             elif node_type in ("export_statement", "export_default_declaration"):
                 for child in node.children:
                     _traverse(
                         child,
-                        parent_class_id=parent_class_id,
-                        parent_class_name=parent_class_name,
+                        parent_scope_id=parent_scope_id,
+                        parent_scope_name=parent_scope_name,
                         enclosing_callable_id=enclosing_callable_id,
+                        is_inside_class=is_inside_class,
                         depth=depth + 1,
                     )
                 return
@@ -211,13 +264,44 @@ class JavaScriptExtractor(BaseExtractor):
             for child in node.children:
                 _traverse(
                     child,
-                    parent_class_id=parent_class_id,
-                    parent_class_name=parent_class_name,
+                    parent_scope_id=parent_scope_id,
+                    parent_scope_name=parent_scope_name,
                     enclosing_callable_id=enclosing_callable_id,
+                    is_inside_class=is_inside_class,
                     depth=depth + 1,
                 )
 
         _traverse(root_node)
+
+        # Post-traversal resolution: Classify call confirmation status
+        local_symbol_names: Set[str] = {s.name for s in symbols}
+        imported_symbol_names: Set[str] = set()
+        for imp in imports:
+            imported_symbol_names.add(imp.module)
+            imported_symbol_names.update(imp.imported_symbols)
+            if imp.alias:
+                imported_symbol_names.add(imp.alias)
+
+        calls: List[ExtractedCall] = []
+        for rc in raw_calls:
+            is_confirmed, res_status = self.classify_call_resolution(
+                callee_name=rc["callee_name"],
+                receiver=rc["receiver"],
+                local_symbols=local_symbol_names,
+                imported_symbols=imported_symbol_names,
+                is_constructor=rc.get("is_constructor", False),
+            )
+            calls.append(
+                ExtractedCall(
+                    caller_symbol_id=rc["caller_symbol_id"],
+                    callee_name=rc["callee_name"],
+                    receiver=rc["receiver"],
+                    location=rc["location"],
+                    is_confirmed=is_confirmed,
+                    resolution_status=res_status,
+                    is_constructor=rc.get("is_constructor", False),
+                )
+            )
 
         return ParsedFile(
             file_path=file_path,
@@ -318,9 +402,11 @@ class JavaScriptExtractor(BaseExtractor):
         source_bytes: bytes,
         file_path: str,
         repo_id: str,
-        parent_class_id: Optional[str],
-        parent_class_name: Optional[str],
+        parent_scope_id: Optional[str],
+        parent_scope_name: Optional[str],
+        is_inside_class: bool,
         symbols: List[ExtractedSymbol],
+        name_counts: Dict[str, int],
     ) -> Optional[ExtractedSymbol]:
         value_node = self.find_child_by_field(node, "value")
         if not value_node or value_node.type not in ("arrow_function", "function_expression"):
@@ -332,12 +418,17 @@ class JavaScriptExtractor(BaseExtractor):
 
         func_name = self.get_text(name_node, source_bytes).strip()
         loc = self.get_location(node, file_path)
-        symbol_type = SymbolType.METHOD if parent_class_id else SymbolType.FUNCTION
-        symbol_id = self.generate_symbol_id(
-            repo_id, file_path, func_name, symbol_type.value, loc.start_line, parent_class_name
+        symbol_type = SymbolType.METHOD if is_inside_class else SymbolType.FUNCTION
+
+        symbol_id = self.get_scoped_symbol_id(
+            repo_id=repo_id,
+            file_path=file_path,
+            name=func_name,
+            symbol_type=symbol_type.value,
+            parent_scope=parent_scope_name,
+            name_counts=name_counts,
         )
 
-        # Parameters
         parameters: List[str] = []
         params_node = self.find_child_by_field(value_node, "parameters")
         if params_node:
@@ -346,13 +437,13 @@ class JavaScriptExtractor(BaseExtractor):
                 if p_text and p_text not in (",", "(", ")"):
                     parameters.append(p_text)
 
-        # Return type
         return_type = None
         ret_node = self.find_child_by_field(value_node, "return_type")
         if ret_node:
             return_type = self.get_text(ret_node, source_bytes).strip()
 
         source_code = self.get_text(node, source_bytes)
+        content_hash = self.compute_content_hash(source_code)
         first_line = source_code.split("\n")[0].strip()
 
         symbol = ExtractedSymbol(
@@ -361,7 +452,8 @@ class JavaScriptExtractor(BaseExtractor):
             symbol_type=symbol_type,
             location=loc,
             source_code=source_code,
-            parent_symbol_id=parent_class_id,
+            content_hash=content_hash,
+            parent_symbol_id=parent_scope_id,
             signature=first_line,
             return_type=return_type,
             parameters=parameters,
@@ -376,9 +468,11 @@ class JavaScriptExtractor(BaseExtractor):
         source_bytes: bytes,
         file_path: str,
         repo_id: str,
-        parent_class_name: Optional[str],
+        parent_scope_id: Optional[str],
+        parent_scope_name: Optional[str],
         symbols: List[ExtractedSymbol],
         inheritances: List[ExtractedInheritance],
+        name_counts: Dict[str, int],
     ) -> Optional[ExtractedSymbol]:
         name_node = self.find_child_by_field(node, "name")
         if not name_node:
@@ -386,12 +480,16 @@ class JavaScriptExtractor(BaseExtractor):
 
         class_name = self.get_text(name_node, source_bytes).strip()
         loc = self.get_location(node, file_path)
-        symbol_id = self.generate_symbol_id(
-            repo_id, file_path, class_name, "CLASS", loc.start_line, parent_class_name
+        symbol_id = self.get_scoped_symbol_id(
+            repo_id=repo_id,
+            file_path=file_path,
+            name=class_name,
+            symbol_type="CLASS",
+            parent_scope=parent_scope_name,
+            name_counts=name_counts,
         )
 
         base_classes: List[str] = []
-        # Check class_heritage
         for child in node.children:
             if child.type == "class_heritage":
                 for h_child in child.children:
@@ -405,6 +503,7 @@ class JavaScriptExtractor(BaseExtractor):
                                         sub_symbol_id=symbol_id,
                                         super_name=super_name,
                                         relationship="INHERITS",
+                                        is_confirmed=False,
                                     )
                                 )
                     elif h_child.type == "implements_clause":
@@ -416,16 +515,20 @@ class JavaScriptExtractor(BaseExtractor):
                                         sub_symbol_id=symbol_id,
                                         super_name=iface_name,
                                         relationship="IMPLEMENTS",
+                                        is_confirmed=False,
                                     )
                                 )
 
         source_code = self.get_text(node, source_bytes)
+        content_hash = self.compute_content_hash(source_code)
         symbol = ExtractedSymbol(
             symbol_id=symbol_id,
             name=class_name,
             symbol_type=SymbolType.CLASS,
             location=loc,
             source_code=source_code,
+            content_hash=content_hash,
+            parent_symbol_id=parent_scope_id,
             properties={"base_classes": base_classes},
         )
         symbols.append(symbol)
@@ -437,8 +540,11 @@ class JavaScriptExtractor(BaseExtractor):
         source_bytes: bytes,
         file_path: str,
         repo_id: str,
+        parent_scope_id: Optional[str],
+        parent_scope_name: Optional[str],
         symbols: List[ExtractedSymbol],
         inheritances: List[ExtractedInheritance],
+        name_counts: Dict[str, int],
     ) -> Optional[ExtractedSymbol]:
         name_node = self.find_child_by_field(node, "name")
         if not name_node:
@@ -446,11 +552,15 @@ class JavaScriptExtractor(BaseExtractor):
 
         iface_name = self.get_text(name_node, source_bytes).strip()
         loc = self.get_location(node, file_path)
-        symbol_id = self.generate_symbol_id(
-            repo_id, file_path, iface_name, "INTERFACE", loc.start_line
+        symbol_id = self.get_scoped_symbol_id(
+            repo_id=repo_id,
+            file_path=file_path,
+            name=iface_name,
+            symbol_type="INTERFACE",
+            parent_scope=parent_scope_name,
+            name_counts=name_counts,
         )
 
-        # Check extends_type_clause
         for child in node.children:
             if child.type == "extends_type_clause":
                 for c in child.children:
@@ -461,16 +571,20 @@ class JavaScriptExtractor(BaseExtractor):
                                 sub_symbol_id=symbol_id,
                                 super_name=super_iface,
                                 relationship="INHERITS",
+                                is_confirmed=False,
                             )
                         )
 
         source_code = self.get_text(node, source_bytes)
+        content_hash = self.compute_content_hash(source_code)
         symbol = ExtractedSymbol(
             symbol_id=symbol_id,
             name=iface_name,
             symbol_type=SymbolType.INTERFACE,
             location=loc,
             source_code=source_code,
+            content_hash=content_hash,
+            parent_symbol_id=parent_scope_id,
         )
         symbols.append(symbol)
         return symbol
@@ -481,7 +595,10 @@ class JavaScriptExtractor(BaseExtractor):
         source_bytes: bytes,
         file_path: str,
         repo_id: str,
+        parent_scope_id: Optional[str],
+        parent_scope_name: Optional[str],
         symbols: List[ExtractedSymbol],
+        name_counts: Dict[str, int],
     ) -> Optional[ExtractedSymbol]:
         name_node = self.find_child_by_field(node, "name")
         if not name_node:
@@ -489,8 +606,13 @@ class JavaScriptExtractor(BaseExtractor):
 
         func_name = self.get_text(name_node, source_bytes).strip()
         loc = self.get_location(node, file_path)
-        symbol_id = self.generate_symbol_id(
-            repo_id, file_path, func_name, "FUNCTION", loc.start_line
+        symbol_id = self.get_scoped_symbol_id(
+            repo_id=repo_id,
+            file_path=file_path,
+            name=func_name,
+            symbol_type="FUNCTION",
+            parent_scope=parent_scope_name,
+            name_counts=name_counts,
         )
 
         parameters: List[str] = []
@@ -507,6 +629,7 @@ class JavaScriptExtractor(BaseExtractor):
             return_type = self.get_text(ret_node, source_bytes).strip()
 
         source_code = self.get_text(node, source_bytes)
+        content_hash = self.compute_content_hash(source_code)
         first_line = source_code.split("\n")[0].strip()
 
         symbol = ExtractedSymbol(
@@ -515,6 +638,8 @@ class JavaScriptExtractor(BaseExtractor):
             symbol_type=SymbolType.FUNCTION,
             location=loc,
             source_code=source_code,
+            content_hash=content_hash,
+            parent_symbol_id=parent_scope_id,
             signature=first_line,
             return_type=return_type,
             parameters=parameters,
@@ -528,9 +653,10 @@ class JavaScriptExtractor(BaseExtractor):
         source_bytes: bytes,
         file_path: str,
         repo_id: str,
-        parent_class_id: Optional[str],
-        parent_class_name: Optional[str],
+        parent_scope_id: Optional[str],
+        parent_scope_name: Optional[str],
         symbols: List[ExtractedSymbol],
+        name_counts: Dict[str, int],
     ) -> Optional[ExtractedSymbol]:
         name_node = self.find_child_by_field(node, "name")
         if not name_node:
@@ -538,8 +664,13 @@ class JavaScriptExtractor(BaseExtractor):
 
         method_name = self.get_text(name_node, source_bytes).strip()
         loc = self.get_location(node, file_path)
-        symbol_id = self.generate_symbol_id(
-            repo_id, file_path, method_name, "METHOD", loc.start_line, parent_class_name
+        symbol_id = self.get_scoped_symbol_id(
+            repo_id=repo_id,
+            file_path=file_path,
+            name=method_name,
+            symbol_type="METHOD",
+            parent_scope=parent_scope_name,
+            name_counts=name_counts,
         )
 
         parameters: List[str] = []
@@ -556,6 +687,7 @@ class JavaScriptExtractor(BaseExtractor):
             return_type = self.get_text(ret_node, source_bytes).strip()
 
         source_code = self.get_text(node, source_bytes)
+        content_hash = self.compute_content_hash(source_code)
         first_line = source_code.split("\n")[0].strip()
 
         symbol = ExtractedSymbol(
@@ -564,7 +696,8 @@ class JavaScriptExtractor(BaseExtractor):
             symbol_type=SymbolType.METHOD,
             location=loc,
             source_code=source_code,
-            parent_symbol_id=parent_class_id,
+            content_hash=content_hash,
+            parent_symbol_id=parent_scope_id,
             signature=first_line,
             return_type=return_type,
             parameters=parameters,
@@ -578,7 +711,7 @@ class JavaScriptExtractor(BaseExtractor):
         source_bytes: bytes,
         file_path: str,
         enclosing_callable_id: Optional[str],
-        calls: List[ExtractedCall],
+        raw_calls: List[dict],
     ) -> None:
         func_node = self.find_child_by_field(node, "function")
         if not func_node:
@@ -601,13 +734,47 @@ class JavaScriptExtractor(BaseExtractor):
             callee_name = self.get_text(func_node, source_bytes).strip()
 
         if callee_name:
-            calls.append(
-                ExtractedCall(
-                    caller_symbol_id=enclosing_callable_id,
-                    callee_name=callee_name,
-                    receiver=receiver,
-                    location=loc,
-                    is_confirmed=False,
-                )
-            )
+            raw_calls.append({
+                "caller_symbol_id": enclosing_callable_id,
+                "callee_name": callee_name,
+                "receiver": receiver,
+                "location": loc,
+                "is_constructor": False,
+            })
 
+    def _handle_new_expression(
+        self,
+        node: tree_sitter.Node,
+        source_bytes: bytes,
+        file_path: str,
+        enclosing_callable_id: Optional[str],
+        raw_calls: List[dict],
+    ) -> None:
+        constructor_node = self.find_child_by_field(node, "constructor")
+        if not constructor_node:
+            return
+
+        loc = self.get_location(node, file_path)
+        callee_name = ""
+        receiver = None
+
+        if constructor_node.type == "identifier":
+            callee_name = self.get_text(constructor_node, source_bytes).strip()
+        elif constructor_node.type == "member_expression":
+            obj_node = self.find_child_by_field(constructor_node, "object")
+            prop_node = self.find_child_by_field(constructor_node, "property")
+            if prop_node:
+                callee_name = self.get_text(prop_node, source_bytes).strip()
+            if obj_node:
+                receiver = self.get_text(obj_node, source_bytes).strip()
+        else:
+            callee_name = self.get_text(constructor_node, source_bytes).strip()
+
+        if callee_name:
+            raw_calls.append({
+                "caller_symbol_id": enclosing_callable_id,
+                "callee_name": callee_name,
+                "receiver": receiver,
+                "location": loc,
+                "is_constructor": True,
+            })

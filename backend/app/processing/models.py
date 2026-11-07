@@ -30,13 +30,15 @@ class SymbolLocation(BaseModel):
 class ExtractedSymbol(BaseModel):
     """
     Unified representation of an AST symbol (function, method, class, etc.).
-    Preserves exact location, source code, docstrings, parameters, and hierarchical scope.
+    Preserves exact location, source code, docstrings, parameters, hierarchical scope,
+    and a stable content hash for incremental indexing.
     """
-    symbol_id: str = Field(..., description="Stable deterministic ID: repo:path#parent.name:line")
+    symbol_id: str = Field(..., description="Stable deterministic ID: repo:path#parent.name")
     name: str
     symbol_type: SymbolType
     location: SymbolLocation
     source_code: str
+    content_hash: Optional[str] = Field(None, description="SHA-256 fingerprint of normalized source code")
     parent_symbol_id: Optional[str] = None
     docstring: Optional[str] = None
     signature: Optional[str] = None
@@ -61,12 +63,15 @@ class ExtractedImport(BaseModel):
 class ExtractedCall(BaseModel):
     """
     Represents a static or dynamically identifiable function / method invocation.
+    Includes resolution classification: CONFIRMED, INFERRED, or UNRESOLVED.
     """
     caller_symbol_id: Optional[str] = None
     callee_name: str
     receiver: Optional[str] = None  # e.g. 'self', 'logger', 'math'
     location: SymbolLocation
-    is_confirmed: bool = False  # True if resolved to a defined symbol in the file/imports
+    is_confirmed: bool = False  # True if resolved to a verified symbol in file/scope
+    resolution_status: str = Field("UNRESOLVED", description="CONFIRMED, INFERRED, or UNRESOLVED")
+    is_constructor: bool = False
     properties: Dict[str, Any] = Field(default_factory=dict)
 
 
@@ -77,6 +82,8 @@ class ExtractedInheritance(BaseModel):
     sub_symbol_id: str
     super_name: str
     relationship: str = "INHERITS"  # INHERITS or IMPLEMENTS
+    is_confirmed: bool = False
+    properties: Dict[str, Any] = Field(default_factory=dict)
 
 
 class ExtractedComment(BaseModel):
@@ -120,4 +127,3 @@ class ParsedRepository(BaseModel):
     total_symbols: int = 0
     total_files: int = 0
     supported_languages: List[str] = Field(default_factory=list)
-

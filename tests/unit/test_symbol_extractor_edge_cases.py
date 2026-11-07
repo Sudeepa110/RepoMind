@@ -80,6 +80,6 @@ class Calculator:
     symbols_2 = [s.symbol_id for s in parsed_2.symbols]
     assert symbols_1 == symbols_2
     assert len(symbols_1) == 2
-    assert "repo_x:calc.py#Calculator:" in symbols_1[0]
-    assert "repo_x:calc.py#Calculator.add:" in symbols_1[1]
+    assert symbols_1[0] == "repo_x:calc.py#Calculator"
+    assert symbols_1[1] == "repo_x:calc.py#Calculator.add"
 

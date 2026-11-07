@@ -114,11 +114,11 @@
      - `ParsedFile` and `ParsedRepository`: unified, aggregated code understanding container.
 
 3. **Language-Specific AST Extractors (`backend/app/processing/extractors/`)**:
-   - `base.py`: Abstract extractor base class with AST traversal, byte slicing, syntax error collectors, and deterministic symbol ID generator: `{repo_id}:{file_path}#{parent.}{name}:{start_line}`.
+   - `base.py`: Abstract extractor base class with AST traversal, byte slicing, syntax error collectors, line-shift immune deterministic symbol ID generator: `{repo_id}:{file_path}#{parent.}{name}`, and SHA-256 source content hashing.
    - `python_extractor.py`: Functions, async functions, classes, methods, base class inheritance, imports (`import`, `from ... import ...`), calls (`receiver.attribute()`), and docstrings.
-   - `javascript_extractor.py`: Functions, arrow functions assigned to const/let/var, classes (`extends`, `implements`), TypeScript interfaces, methods, CommonJS `require()`, ES6 `import`, and calls.
-   - `java_extractor.py`: Classes, interfaces, enums, records, superclasses, super-interfaces, methods, constructors, imports, and method invocations.
-   - `c_cpp_extractor.py`: C/C++ functions, methods, class/struct specifiers, C++ base classes, preprocessor `#include` directives, and function calls.
+   - `javascript_extractor.py`: Functions, arrow functions assigned to const/let/var, classes (`extends`, `implements`), TypeScript interfaces, methods, CommonJS `require()`, ES6 `import`, constructor calls (`new_expression`), and calls.
+   - `java_extractor.py`: Classes, interfaces, enums, records, superclasses, super-interfaces, methods, constructors, imports, object creations (`object_creation_expression`), and method invocations.
+   - `c_cpp_extractor.py`: C/C++ functions, methods, class/struct specifiers, C++ base classes, preprocessor `#include` directives, constructor calls (`new_expression`), and function calls.
    - `go_extractor.py`: Functions, methods with receivers (`(u *User)`), structs, interfaces, imports, and calls.
 
 4. **Code Understanding Engine (`backend/app/processing/engine.py`)**:
@@ -127,13 +127,17 @@
    - Graceful fallback for unsupported extensions, Unicode/binary probing, and file size safeguards.
 
 5. **Shared Pipeline Adapters (`backend/app/processing/adapters.py`)**:
-   - `to_graph_elements(parsed_repo)`: Directly maps `ParsedRepository` into `GraphNode` and `GraphEdge` objects for GraphRAG (Phase 5).
-   - `to_code_chunks(parsed_repo)`: Directly maps `ParsedRepository` into structure-aware code chunks with line citations for Vector RAG (Phase 4).
+   - `to_graph_elements(parsed_repo)`: Directly maps `ParsedRepository` into `GraphNode` and `GraphEdge` objects for GraphRAG (Phase 5). Includes edge deduplication (counting call frequencies and recording line arrays) and target resolution.
+   - `to_code_chunks(parsed_repo)`: Directly maps `ParsedRepository` into structure-aware code chunks with line citations and content hashes for Vector RAG (Phase 4).
 
-6. **Verification & Testing**:
-   - 32 automated tests passing 100% across unit and integration suites (13 new tests added in Phase 3).
-   - Tested language symbol extraction across Python, JavaScript, TypeScript, Java, C, C++, and Go.
-   - Verified syntax error recovery, empty files, unsupported extensions, oversized files, and deterministic symbol IDs.
-   - Verified shared pipeline adapters and multi-language repository integration parsing.
-   - Frontend production build (`npm run build`) verified clean (424ms build time).
+6. **Phase 3 Quality Audit & Stabilization**:
+   - **Audit 1: Call Extraction Variety & Accuracy**: Verified direct calls, object methods, nested calls `f(g(x))`, `self`/`this` calls, module calls, constructors (`new UserService()`, `new ArrayList()`), calls inside loops and conditionals. Verified non-call identifiers (function pointers, argument lists, variables) are rejected.
+   - **Audit 2: Nested Symbol Hierarchy**: Validated multi-level nesting across all languages: Class -> Method, Class -> Nested Class -> Method, Function -> Closure / Helper, Interface -> Method, Struct -> Method.
+   - **Audit 3: Line-Shift Invariant Symbol IDs**: Decoupled starting line numbers from `symbol_id`. Verified that inserting lines/functions above an existing function does not alter its ID, while `content_hash` tracks actual code changes.
+   - **Audit 4: Graph Edge Deduplication & Resolution**: Implemented edge merging to prevent duplicate edges between the same caller and callee; added `call_count` and `lines` list to edge properties. Implemented local target resolution with confidence levels (CONFIRMED 1.0, INFERRED 0.7-0.9, UNRESOLVED 0.3).
+   - **Audit 5: Source Citation Guarantees**: Tested 1-indexed line fidelity across Windows CRLF, Unix LF, Unicode characters, and multi-byte UTF-8 source files.
+
+7. **Verification & Testing**:
+   - 41 automated tests passing 100% across unit and integration suites (9 dedicated audit tests added).
+   - Frontend production build (`npm run build`) verified clean (387ms build time).
 
