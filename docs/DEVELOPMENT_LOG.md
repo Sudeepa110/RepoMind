@@ -25,7 +25,7 @@
 ## Updated Master 10-Phase Roadmap
 
 - **Phase 1**: Project Foundation & Baseline Scaffolding *(Completed)*
-- **Phase 2**: GitHub Repository Ingestion & File Filtering *(Pending User Approval)*
+- **Phase 2**: GitHub Repository Ingestion & File Filtering *(Completed & Verified)*
 - **Phase 3**: Tree-sitter Code Understanding & Shared Parsing Pipeline
 - **Phase 4**: Vector RAG & ChromaDB Persistent Storage
 - **Phase 5**: Knowledge Graph Construction using NetworkX
@@ -34,3 +34,52 @@
 - **Phase 8**: Gemini Integration, Grounded Generation & Clickable Citations
 - **Phase 9**: Advanced Repository Intelligence & Change Impact Analysis
 - **Phase 10**: Multi-User Security, Performance Optimization & Public Deployment
+
+---
+
+## Phase 2: GitHub Repository Ingestion & File Filtering
+- **Status**: Completed & Verified
+- **Date**: 2026-11-07
+
+### Work Completed
+
+1. **Repository Cloner (`backend/app/ingestion/cloner.py`)**:
+   - Implemented shallow cloning (`git clone --depth 1 --single-branch --no-tags`) into isolated temporary workspaces (`storage/temp_repos/{uuid}/`).
+   - Configured non-interactive execution (`GIT_TERMINAL_PROMPT=0`, `GCM_INTERACTIVE=never`, `stdin=subprocess.DEVNULL`) to prevent credential prompts or UI hangs on private/nonexistent repos.
+   - Enforced disk size limits (`MAX_REPO_SIZE_MB`) and timeouts (`CLONE_TIMEOUT_SECONDS`).
+   - Implemented Windows-safe workspace cleanup handling read-only git attributes.
+
+2. **File Filtering Engine (`backend/app/ingestion/file_filter.py`)**:
+   - Filtered build, dependency, and VCS directories (`.git`, `node_modules`, `venv`, `dist`, `build`, etc.).
+   - Filtered binary and compiled extensions (`.exe`, `.dll`, `.so`, `.zip`, `.pyc`, `.png`, `.jpg`, `.sqlite`, `.wasm`, etc.).
+   - Implemented secret and credential detection (`.env*`, `*.pem`, `*.key`, `id_rsa`, `credentials.json`, `service_account.json`).
+   - Null-byte binary content probing on file reads.
+   - Enforced `MAX_FILE_SIZE_KB` (500 KB) and `MAX_INDEXED_FILES` (500 files).
+
+3. **Repository Analyzer (`backend/app/ingestion/analyzer.py`)**:
+   - Language detection mapping 30+ extensions to languages with line counts and percentages.
+   - Dependency manifest detection (`package.json`, `pyproject.toml`, `requirements.txt`, `Cargo.toml`, `Dockerfile`, etc.).
+   - Entry point candidate detection (`main.py`, `app.py`, `index.ts`, `server.js`, etc.).
+   - Truncated README extraction (up to 100 KB).
+   - Hierarchical directory tree generator (`TreeNode`) for the Code Explorer.
+
+4. **Background Indexing Service (`backend/app/services/indexing.py`)**:
+   - Async background worker tracking stages: `QUEUED` -> `CLONING` -> `FILTERING` -> `ANALYZING` -> `COMPLETED`.
+   - SQLite persistence for repository metadata, job tracking, and file cataloging.
+
+5. **API Endpoints (`backend/app/api/repositories.py`)**:
+   - `POST /api/v1/repositories/analyze`
+   - `GET /api/v1/repositories/{id}/status`
+   - `GET /api/v1/repositories/{id}`
+   - `GET /api/v1/repositories/{id}/tree`
+   - `GET /api/v1/repositories/{id}/file?path=...` (with path-traversal guards)
+   - `GET /api/v1/repositories`
+   - `DELETE /api/v1/repositories/{id}`
+
+6. **Frontend Integration**:
+   - `DashboardPreview.tsx` updated with real-time progress polling, stage indicators, language distribution bars, manifest/entry point lists, interactive directory tree, and file viewer with line numbering.
+
+7. **Verification & Testing**:
+   - 19 automated tests passing 100% across unit and integration suites.
+   - Verified real shallow cloning and analysis against multiple public repositories (`octocat/Hello-World`, `octocat/Spoon-Knife`, `expressjs/cookie-parser`).
+   - Path-traversal attacks and invalid URLs verified to be rejected cleanly.

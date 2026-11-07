@@ -3,6 +3,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from backend.app.config import settings
+from backend.app.database.session import init_db
 from backend.app.api.health import router as health_router
 from backend.app.api.repositories import router as repositories_router
 
@@ -10,6 +11,7 @@ from backend.app.api.repositories import router as repositories_router
 async def lifespan(app: FastAPI):
     # Startup actions
     settings.init_directories()
+    await init_db()
     yield
     # Shutdown cleanup if needed
 

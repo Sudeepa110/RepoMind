@@ -1,11 +1,19 @@
 import axios from 'axios';
-import type { HealthStatus, DemoRepository, ValidationResult } from '../types';
+import type {
+  HealthStatus,
+  DemoRepository,
+  ValidationResult,
+  RepositoryDetail,
+  IndexingStatus,
+  TreeNode,
+  FileContent,
+} from '../types';
 
 const API_BASE = '/api/v1';
 
 const apiClient = axios.create({
   baseURL: API_BASE,
-  timeout: 10000,
+  timeout: 15000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -24,6 +32,36 @@ export const api = {
 
   async validateRepository(url: string): Promise<ValidationResult> {
     const res = await apiClient.post<ValidationResult>('/repositories/validate', { url });
+    return res.data;
+  },
+
+  async analyzeRepository(url: string, forceReindex: boolean = false): Promise<{ repository_id: string; job_id: string; status: string; message: string }> {
+    const res = await apiClient.post('/repositories/analyze', {
+      url,
+      force_reindex: forceReindex,
+    });
+    return res.data;
+  },
+
+  async getRepositoryStatus(repositoryId: string): Promise<IndexingStatus> {
+    const res = await apiClient.get<IndexingStatus>(`/repositories/${repositoryId}/status`);
+    return res.data;
+  },
+
+  async getRepositoryDetails(repositoryId: string): Promise<RepositoryDetail> {
+    const res = await apiClient.get<RepositoryDetail>(`/repositories/${repositoryId}`);
+    return res.data;
+  },
+
+  async getRepositoryTree(repositoryId: string): Promise<TreeNode> {
+    const res = await apiClient.get<TreeNode>(`/repositories/${repositoryId}/tree`);
+    return res.data;
+  },
+
+  async getRepositoryFile(repositoryId: string, path: string): Promise<FileContent> {
+    const res = await apiClient.get<FileContent>(`/repositories/${repositoryId}/file`, {
+      params: { path },
+    });
     return res.data;
   },
 };

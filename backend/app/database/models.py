@@ -83,3 +83,4 @@ class AnonymousSessionModel(Base):
     request_count: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=get_utc_now)
     last_active_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=get_utc_now)
+

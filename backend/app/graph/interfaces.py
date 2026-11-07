@@ -100,3 +100,4 @@ class BaseGraphStore(ABC):
     def load(self, repository_id: str) -> bool:
         """Load persisted graph from storage."""
         pass
+
