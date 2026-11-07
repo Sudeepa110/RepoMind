@@ -42,8 +42,8 @@ RepoMind is built on a **unified code understanding foundation** powered by Tree
 ## 10-Phase Roadmap
 
 - [x] **Phase 1**: Project Foundation & Baseline Scaffolding
-- [ ] **Phase 2**: GitHub Repository Ingestion & File Filtering
-- [ ] **Phase 3**: Tree-sitter Code Understanding & Shared Parsing Pipeline
+- [x] **Phase 2**: GitHub Repository Ingestion & File Filtering
+- [x] **Phase 3**: Tree-sitter Code Understanding & Shared Parsing Pipeline
 - [ ] **Phase 4**: Vector RAG & ChromaDB Persistent Storage
 - [ ] **Phase 5**: Knowledge Graph Construction using NetworkX
 - [ ] **Phase 6**: GraphRAG & Graph Traversal (Call graphs, Dependencies, Scopes)
