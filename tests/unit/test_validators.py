@@ -40,3 +40,4 @@ def test_invalid_github_urls():
         is_valid, owner, repo, err = validate_github_url(url)
         assert is_valid is False, f"Expected {url} to be invalid"
         assert err is not None
+

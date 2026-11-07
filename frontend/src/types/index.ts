@@ -33,3 +33,4 @@ export interface ValidationResult {
 }
 
 export type AppView = 'landing' | 'dashboard';
+

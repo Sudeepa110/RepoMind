@@ -29,12 +29,13 @@ class Settings(BaseModel):
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
     GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
-    # Embeddings & Vector Store
+    # Embeddings, Vector Store & Knowledge Graph
     EMBEDDING_MODEL_NAME: str = os.getenv(
         "EMBEDDING_MODEL_NAME", "sentence-transformers/all-MiniLM-L6-v2"
     )
     STORAGE_DIR: Path = BASE_DIR / "storage"
     CHROMA_PERSIST_DIR: Path = BASE_DIR / "storage" / "chroma"
+    GRAPH_PERSIST_DIR: Path = BASE_DIR / "storage" / "graphs"
     SQLITE_DB_PATH: Path = BASE_DIR / "storage" / "repomind.db"
 
     # Ingestion & Safety Limits
@@ -52,6 +53,7 @@ class Settings(BaseModel):
         """Ensure necessary storage directories exist."""
         self.STORAGE_DIR.mkdir(parents=True, exist_ok=True)
         self.CHROMA_PERSIST_DIR.mkdir(parents=True, exist_ok=True)
+        self.GRAPH_PERSIST_DIR.mkdir(parents=True, exist_ok=True)
 
 settings = Settings()
 settings.init_directories()

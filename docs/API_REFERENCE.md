@@ -84,3 +84,4 @@ Validates a GitHub URL against SSRF attacks, format violations, and tests public
 - `GET /api/v1/repositories/{id}/file`: Retrieves raw syntax file with line numbering (Phase 3).
 - `POST /api/v1/chat/{repo_id}`: Initiates multi-turn RAG chat with streaming citations (Phase 6).
 - `GET /api/v1/intelligence/architecture/{id}`: Returns architecture component graph (Phase 7).
+

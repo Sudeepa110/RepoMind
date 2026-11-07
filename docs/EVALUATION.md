@@ -1,23 +1,44 @@
-# Evaluation Framework
+# Evaluation Framework: Vector RAG, GraphRAG & Hybrid Retrieval
 
-## Purpose
+## Overview
 
-To prevent hallucinations and verify retrieval accuracy, RepoMind incorporates an automated and empirical evaluation framework.
+RepoMind evaluates its retrieval and generation subsystems both independently and in hybrid combination across real-world open-source repositories.
 
-## Evaluation Metrics
+---
 
-1. **Retrieval Precision@K**: Fraction of retrieved chunks that contain the actual ground-truth implementation for a user query.
-2. **Context Recall**: Whether all essential functions/classes needed to answer the question are present in the top-K retrieved context.
-3. **Citation Accuracy**: Percentage of cited file paths and line ranges that correspond to real, verifiable code symbols in the repository.
-4. **Hallucination Rate**: Frequency of non-existent methods, arguments, or file paths generated in responses (Target: 0%).
-5. **Latency & Throughput**: Time-to-first-token (TTFT) and total indexing time per 100 source files.
+## 1. Subsystem Evaluation Targets
 
-## Benchmark Dataset (Phase 1 Baseline)
+### A. Vector RAG Evaluation
+- **Target**: Semantic precision and conceptual grounding.
+- **Metrics**:
+  - `Context Precision@K`: Proportion of retrieved chunks directly relevant to the user query.
+  - `Context Recall`: Verification that the core implementation method/class is captured in top-K context.
+  - `Chunk Boundary Integrity`: Ensure chunks do not cut syntax structures in half.
 
-| Repository | Test Case | Target Symbol | Status |
+### B. GraphRAG Evaluation
+- **Target**: Structural connectivity, invocation chains, and dependency resolution.
+- **Metrics**:
+  - `Relationship Retrieval Accuracy`: Verified ratio of true static function calls vs. extracted edges.
+  - `Caller/Callee Completeness`: Verification that all direct callers of a target function are identified.
+  - `Impact Analysis Precision`: Identification of genuinely affected components when modifying a class/method without false positives.
+
+### C. Hybrid Retrieval Evaluation
+- **Target**: Cross-cutting queries (e.g. "Explain the complete login execution flow").
+- **Metrics**:
+  - `End-to-End Answer Correctness`: Ground-truth alignment verified by human inspection.
+  - `Citation Accuracy`: Percentage of cited files and line numbers that accurately match source coordinates.
+  - `Hallucination Rate`: Zero-tolerance target (0%) for non-existent methods, files, or arguments.
+  - `Response Latency`: Time to first token (TTFT) and total generation time.
+  - `Resource Consumption`: RAM usage (target < 4 GB) and GPU memory utilization.
+
+---
+
+## 2. Benchmark Repositories & Test Cases
+
+| Repository | Query Type | Question | Expected Ground Truth |
 |---|---|---|---|
-| `fastapi/fastapi` | Where is the FastAPI class defined? | `fastapi/applications.py:FastAPI` | Verified URL validation |
-| `pallets/flask` | Where is the Flask app initialized? | `src/flask/app.py:Flask` | Verified URL validation |
-| `pmndrs/zustand` | Where is createStore declared? | `src/vanilla.ts:createStore` | Verified URL validation |
-
-Empirical retrieval and answer verification will be benchmarked as the RAG pipeline is built in Phases 4 through 6.
+| `fastapi/fastapi` | Vector RAG | "Explain how FastAPI handles dependency injection." | `fastapi/params.py:Depends`, `fastapi/dependencies/models.py` |
+| `fastapi/fastapi` | GraphRAG | "Which functions call request_response()?" | Graph traversal matching callers in `fastapi/routing.py` |
+| `pallets/flask` | Hybrid | "What happens when app.run() is called?" | Traversal of `app.py:run` calling `werkzeug.serving:run_simple` + snippet citations |
+| `pmndrs/zustand` | GraphRAG | "What depends on createStore?" | Graph callers and import hierarchy across `src/vanilla.ts` and `src/react.ts` |
+| `pallets/flask` | Impact Analysis | "What could be affected if I change Flask.dispatch_request?" | Identifies route handlers, `full_dispatch_request`, and view functions |

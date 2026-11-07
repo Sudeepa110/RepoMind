@@ -10,3 +10,4 @@ class HealthResponse(BaseModel):
     gemini_configured: bool
     timestamp: str
     system_info: Dict[str, Any]
+

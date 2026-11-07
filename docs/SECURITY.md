@@ -29,3 +29,4 @@ RepoMind accepts untrusted third-party input (arbitrary public GitHub repositori
 - System prompts explicitly instruct the Gemini LLM that repository contents represent untrusted user data, not instructions.
 - System instructions cannot be overridden by comments, READMEs, or documentation inside the target repository.
 - Citations must match verified AST chunks stored in the vector database.
+

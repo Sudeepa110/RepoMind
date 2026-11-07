@@ -64,3 +64,4 @@ async def test_validate_repository_endpoint():
         assert data_valid["is_valid"] is True
         assert data_valid["owner"] == "fastapi"
         assert data_valid["repo"] == "fastapi"
+

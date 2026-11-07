@@ -35,3 +35,4 @@ curl http://localhost:8000/api/v1/health
 ```
 
 The frontend will run on port 3000 and the backend API on port 8000.
+

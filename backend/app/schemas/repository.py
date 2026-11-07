@@ -20,3 +20,4 @@ class DemoRepository(BaseModel):
     category: str
     language: str
     stars: str
+
