@@ -141,3 +141,65 @@
    - 41 automated tests passing 100% across unit and integration suites (9 dedicated audit tests added).
    - Frontend production build (`npm run build`) verified clean (387ms build time).
 
+---
+
+## Phase 4: Structure-Aware Vector RAG and ChromaDB Persistent Storage (Completed)
+**Date**: November 2026
+
+### Work Completed
+
+1. **Abstract Interfaces (`backend/app/vectorstore/interfaces.py`)**:
+   - `CodeChunk`: Domain model storing `chunk_id`, `repository_id`, `file_path`, `symbol_id`, `symbol_name`, `symbol_type`, `language`, `start_line`, `end_line`, `source_code`, `signature`, `docstring`, `content_hash`, `context_header`, `full_content`, `part_index`, `total_parts`.
+   - `SearchResult`: Container pairing `CodeChunk` with computed `similarity_score` (0.0 to 1.0) and cosine `distance`.
+   - `VectorStoreStats`: Container for total chunks, language breakdown, and symbol type breakdown.
+   - `BaseEmbeddingService`: Abstract interface for local embeddings decoupling dense vector generation from concrete models.
+   - `BaseVectorStore`: Abstract interface for isolated persistent collections, cosine similarity search, stats, incremental hashes, and lifecycle deletion.
+
+2. **Local Zero-Cost Embedding Service (`backend/app/vectorstore/embeddings.py`)**:
+   - Implemented `LocalSentenceTransformerService` using `sentence-transformers/all-MiniLM-L6-v2` (384 dimensions).
+   - Zero-cost architecture: executes locally on CPU with automatic CUDA GPU acceleration probe.
+   - Thread-safe lazy initialization and batch generation support.
+
+3. **Structure-Aware Code Chunker (`backend/app/vectorstore/chunker.py`)**:
+   - Consumes the shared Phase 3 AST intermediate representation (`ParsedRepository`).
+   - Prioritizes semantic AST symbols (functions, methods, classes, interfaces).
+   - Preserves exact 1-indexed line references, symbol IDs, and content hashes.
+   - Splits oversized symbols (>100 lines or >3000 chars) into overlapping sub-chunks (20 line overlap) with part numbering (`Part X of Y`) to preserve context.
+   - Markdown documentation chunking: partitions README and docs along `#`, `##`, `###` headings into `DOC` chunks.
+   - Configuration manifest chunking: sliding-window partitioning for `package.json`, `requirements.txt`, Dockerfiles, etc. into `CONFIG` chunks.
+   - Generates formatted context headers summarizing file path, line numbers, and symbol scopes.
+
+4. **Persistent ChromaDB Vector Store (`backend/app/vectorstore/chroma_store.py`)**:
+   - Persistent storage located at `storage/chroma/`.
+   - Isolated collections per repository using RFC-compliant collection naming (`repo_{sanitized_repo_id}`).
+   - Primitive metadata flattening compatible with ChromaDB constraints.
+   - Cosine distance metric mapped to bounded similarity scores: $\max(0.0, \min(1.0, 1.0 - \frac{\text{distance}}{2.0}))$.
+   - Incremental indexing deduplication: retrieves existing chunk hashes and skips re-embedding unchanged symbols.
+   - Complete collection cleanup on repository deletion.
+
+5. **Semantic Search Coordinator (`backend/app/retrieval/semantic_search.py`)**:
+   - High-level coordinator for dense query embedding, metadata filtering (by `language`, `file_path`, `symbol_type`), and score ranking.
+
+6. **API Endpoints (`backend/app/api/repositories.py`) & Schemas (`backend/app/schemas/search.py`)**:
+   - `POST /api/v1/repositories/{id}/index`: Triggers or re-indexes vector representations for a repository.
+   - `GET /api/v1/repositories/{id}/index/status`: Returns vector collection statistics (chunk counts, breakdowns, collection name).
+   - `POST /api/v1/repositories/{id}/search`: Executes semantic search with query, top_k, and metadata filters.
+   - Updated `DELETE /api/v1/repositories/{id}` to remove ChromaDB collections alongside disk and database records.
+
+7. **Frontend Dashboard Integration (`frontend/src/`)**:
+   - Created dedicated **Semantic Vector Search** tab in `DashboardPreview.tsx`.
+   - Search bar with example query quick-picks, top_k selection, and language/symbol type filters.
+   - Rich search result cards displaying similarity match percentage pills, exact line citations (`#L{start}-L{end}`), symbol pills, and code snippet tables with line numbers.
+   - One-click "Open in Code Explorer" action linking directly from search results to file view.
+   - Real-time ChromaDB collection stats panel and "Re-index Vectors" action button.
+   - Updated pipeline architecture banner to show the 6-stage ingestion and vector indexing progression.
+
+8. **Automated Testing & Ground-Truth Retrieval Evaluation**:
+   - Unit tests (`tests/unit/test_vectorstore.py`): 6 tests verifying chunking, splitting, embeddings, ChromaDB persistence, collection isolation, and deletion.
+   - Integration test (`tests/integration/test_semantic_retrieval.py`): Multi-language end-to-end ingest -> AST parse -> chunk -> embed -> ChromaDB store -> retrieve flow.
+   - Ground-truth evaluation (`tests/evaluation/test_retrieval_metrics.py`): 6 realistic developer queries asserting Precision@1, Precision@3, Recall@3, and line citation accuracy.
+   - Evaluation metrics: 100.00% Precision@1, 100.00% Recall@3, 100.00% exact line citation accuracy.
+   - Full test suite: 49/49 tests passing 100% in 33.08s.
+   - Frontend production build (`npm run build`) passing clean in 220ms.
+
+

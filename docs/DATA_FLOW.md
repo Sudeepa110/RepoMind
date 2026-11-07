@@ -66,4 +66,33 @@ sequenceDiagram
     Gemini-->>API: Grounded response with verified line references
     API-->>Frontend: SSE Stream (Text + Clickable Citations)
     Frontend-->>User: Render syntax-highlighted answer with line links
+
+---
+
+## 3. Semantic Vector Search Flow (Phase 4 Completed)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User
+    participant Frontend as React Dashboard (Search Tab)
+    participant API as FastAPI Backend (/repositories/{id}/search)
+    participant SearchService as SemanticSearchService
+    participant Embedder as Local MiniLM-L6-v2 Embedder
+    participant Chroma as ChromaDB Isolated Collection
+    participant Explorer as Code Explorer (UI)
+
+    User->>Frontend: Enter query: "JWT token verification" + optional filters
+    Frontend->>API: POST /api/v1/repositories/{id}/search (query, top_k, filters)
+    API->>SearchService: search(repo_id, query, top_k, language, file_path, symbol_type)
+    SearchService->>Embedder: embed_text(query) -> 384-dim dense float vector
+    SearchService->>Chroma: collection.query(query_embedding, where=filters, n_results=top_k)
+    Chroma-->>SearchService: documents, metadatas, distances
+    SearchService->>SearchService: Compute cosine similarity (1.0 - distance / 2.0)
+    SearchService-->>API: List of SearchResult (ranked descending by similarity)
+    API-->>Frontend: SearchResponse (JSON)
+    Frontend-->>User: Render ranked chunk cards with % match and #L{start}-L{end}
+    User->>Frontend: Click "Open in Code Explorer"
+    Frontend->>Explorer: Switch to Explorer tab, select file, and highlight lines
+```
 ```

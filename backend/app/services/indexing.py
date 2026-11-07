@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 import json
 import logging
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from backend.app.config import settings
@@ -13,8 +13,12 @@ from backend.app.utils.validators import validate_github_url
 from backend.app.ingestion.cloner import RepositoryCloner, cleanup_workspace
 from backend.app.ingestion.file_filter import filter_repository
 from backend.app.ingestion.analyzer import analyze_repository
+from backend.app.processing.engine import code_engine
+from backend.app.vectorstore.chunker import chunker
+from backend.app.retrieval.semantic_search import semantic_search_service
 
 logger = logging.getLogger("repomind.indexing")
+
 
 async def get_or_create_repository(
     repo_url: str,
@@ -64,7 +68,7 @@ async def get_or_create_repository(
         new_job = IndexingJobModel(
             repository_id=existing_repo.id,
             status="queued",
-            current_stage="Queued for analysis",
+            current_stage="Queued for analysis and vector indexing",
             progress_pct=0,
             started_at=datetime.now(timezone.utc),
         )
@@ -87,7 +91,7 @@ async def get_or_create_repository(
     new_job = IndexingJobModel(
         repository_id=new_repo.id,
         status="queued",
-        current_stage="Queued for analysis",
+        current_stage="Queued for analysis and vector indexing",
         progress_pct=0,
         started_at=datetime.now(timezone.utc),
     )
@@ -96,6 +100,7 @@ async def get_or_create_repository(
     await db.refresh(new_repo)
     await db.refresh(new_job)
     return new_repo, new_job, False
+
 
 async def update_job_progress(
     job_id: str,
@@ -131,25 +136,34 @@ async def update_job_progress(
         await session.execute(repo_update)
         await session.commit()
 
-async def process_repository_job(job_id: str, repo_id: str, repo_url: str) -> None:
+
+async def process_repository_job(
+    job_id: str,
+    repo_id: str,
+    repo_url: str,
+    force_reindex: bool = False,
+) -> None:
     """
-    Background worker that runs the full Phase 2 ingestion pipeline:
+    Background worker that runs the full ingestion, code understanding, and Vector RAG indexing pipeline:
     1. Shallow clone repository into isolated workspace
     2. Filter files (omit binaries, secrets, node_modules, generated assets)
     3. Static repository analysis (languages, line counts, manifests, entry points)
-    4. Save file metadata and directory tree
+    4. Tree-sitter Code Understanding & AST symbol extraction (Python, JS, TS, Java, C, C++, Go)
+    5. Structure-aware code chunking (symbols, docstrings, Markdown sections, manifests)
+    6. Embedding generation & ChromaDB persistent vector storage
+    7. Persist file metadata, directory tree, and mark repository ready
     """
     cloner = RepositoryCloner()
     repo_workspace: Optional[Path] = None
 
     try:
-        # Stage 1: Cloning (0% -> 25%)
+        loop = asyncio.get_running_loop()
+
+        # Stage 1: Cloning (0% -> 15%)
         await update_job_progress(
             job_id, repo_id, status="processing", current_stage="Cloning repository (shallow depth=1)", progress_pct=15
         )
 
-        # Run git clone in thread to prevent blocking the async event loop
-        loop = asyncio.get_running_loop()
         clone_result = await loop.run_in_executor(
             None, cloner.clone_repository, repo_url, repo_id, settings.CLONE_TIMEOUT_SECONDS
         )
@@ -162,25 +176,71 @@ async def process_repository_job(job_id: str, repo_id: str, repo_url: str) -> No
 
         repo_workspace = Path(clone_result.target_dir)
 
-        # Stage 2: Filtering (25% -> 50%)
+        # Stage 2: Filtering (15% -> 30%)
         await update_job_progress(
-            job_id, repo_id, status="processing", current_stage="Filtering repository files (stripping binaries & secrets)", progress_pct=40
+            job_id, repo_id, status="processing", current_stage="Filtering repository files (stripping binaries & secrets)", progress_pct=30
         )
 
         accepted_files, filtered_files, total_raw_count = await loop.run_in_executor(
             None, filter_repository, repo_workspace
         )
 
-        # Stage 3: Static Analysis (50% -> 85%)
+        # Stage 3: Static Analysis (30% -> 45%)
         await update_job_progress(
-            job_id, repo_id, status="processing", current_stage="Analyzing language statistics and directory structure", progress_pct=70
+            job_id, repo_id, status="processing", current_stage="Analyzing language statistics and directory structure", progress_pct=45
         )
 
         analysis = await loop.run_in_executor(
             None, analyze_repository, repo_workspace, accepted_files
         )
 
-        # Stage 4: Persist Analysis & File Metadata into SQLite (85% -> 100%)
+        # Stage 4: Tree-sitter AST Parsing (45% -> 60%)
+        await update_job_progress(
+            job_id, repo_id, status="processing", current_stage="Parsing AST symbols with Tree-sitter (functions, classes, calls)", progress_pct=60
+        )
+
+        parsed_repo = await loop.run_in_executor(
+            None,
+            code_engine.parse_repository,
+            repo_workspace,
+            accepted_files,
+            repo_id,
+            clone_result.commit_hash,
+        )
+
+        # Stage 5: Structure-Aware Code Chunking (60% -> 75%)
+        await update_job_progress(
+            job_id, repo_id, status="processing", current_stage="Generating structure-aware code chunks and documentation sections", progress_pct=75
+        )
+
+        chunks = await loop.run_in_executor(
+            None,
+            chunker.chunk_repository,
+            parsed_repo,
+            accepted_files,
+            repo_workspace,
+        )
+
+        # Stage 6: Dense Embedding Generation & ChromaDB Storage (75% -> 90%)
+        await update_job_progress(
+            job_id, repo_id, status="processing", current_stage=f"Generating dense vector embeddings for {len(chunks)} code chunks (ChromaDB)", progress_pct=85
+        )
+
+        indexed_chunks_count = await loop.run_in_executor(
+            None,
+            semantic_search_service.index_chunks,
+            repo_id,
+            chunks,
+            force_reindex,
+        )
+
+        logger.info(f"Indexed {indexed_chunks_count} chunks in ChromaDB for repo {repo_id}")
+
+        # Stage 7: Persist Analysis & File Metadata into SQLite (90% -> 100%)
+        await update_job_progress(
+            job_id, repo_id, status="processing", current_stage="Saving file metadata and directory structure", progress_pct=95
+        )
+
         async with AsyncSessionLocal() as session:
             # Delete old file metadata for this repo if re-indexing
             old_meta_stmt = select(FileMetadataModel).where(FileMetadataModel.repository_id == repo_id)
@@ -233,7 +293,7 @@ async def process_repository_job(job_id: str, repo_id: str, repo_url: str) -> No
 
         # Mark job completed
         await update_job_progress(
-            job_id, repo_id, status="completed", current_stage="Repository ingestion and analysis complete", progress_pct=100
+            job_id, repo_id, status="completed", current_stage="Repository ingestion and vector indexing complete", progress_pct=100
         )
 
     except Exception as e:
@@ -243,4 +303,3 @@ async def process_repository_job(job_id: str, repo_id: str, repo_url: str) -> No
         await update_job_progress(
             job_id, repo_id, status="failed", current_stage="Failed during processing", progress_pct=0, error_message=str(e)
         )
-

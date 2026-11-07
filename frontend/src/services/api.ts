@@ -7,13 +7,15 @@ import type {
   IndexingStatus,
   TreeNode,
   FileContent,
+  SearchResponse,
+  VectorIndexStatus,
 } from '../types';
 
 const API_BASE = '/api/v1';
 
 const apiClient = axios.create({
   baseURL: API_BASE,
-  timeout: 15000,
+  timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -61,6 +63,32 @@ export const api = {
   async getRepositoryFile(repositoryId: string, path: string): Promise<FileContent> {
     const res = await apiClient.get<FileContent>(`/repositories/${repositoryId}/file`, {
       params: { path },
+    });
+    return res.data;
+  },
+
+  async searchRepository(
+    repositoryId: string,
+    params: {
+      query: string;
+      top_k?: number;
+      language?: string;
+      file_path?: string;
+      symbol_type?: string;
+    }
+  ): Promise<SearchResponse> {
+    const res = await apiClient.post<SearchResponse>(`/repositories/${repositoryId}/search`, params);
+    return res.data;
+  },
+
+  async getVectorIndexStatus(repositoryId: string): Promise<VectorIndexStatus> {
+    const res = await apiClient.get<VectorIndexStatus>(`/repositories/${repositoryId}/index/status`);
+    return res.data;
+  },
+
+  async triggerReindex(repositoryId: string, forceReindex: boolean = true): Promise<{ repository_id: string; job_id: string; status: string; message: string }> {
+    const res = await apiClient.post(`/repositories/${repositoryId}/index`, null, {
+      params: { force_reindex: forceReindex },
     });
     return res.data;
   },

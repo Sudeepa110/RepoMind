@@ -15,6 +15,11 @@ import {
   AlertTriangle,
   Loader2,
   FileText,
+  Search,
+  Database,
+  Code2,
+  RefreshCw,
+  Filter,
 } from 'lucide-react';
 import { api } from '../services/api';
 import type {
@@ -23,6 +28,8 @@ import type {
   IndexingStatus,
   TreeNode,
   FileContent,
+  SearchChunkResult,
+  VectorIndexStatus,
 } from '../types';
 
 interface DashboardPreviewProps {
@@ -47,12 +54,20 @@ const LANGUAGE_COLORS: Record<string, string> = {
   YAML: 'bg-lime-500',
 };
 
+const EXAMPLE_QUERIES = [
+  'authentication and password verification',
+  'database connection and session management',
+  'HTTP API routing and request handlers',
+  'configuration loading and environment settings',
+  'error handling and exception responses',
+];
+
 export const DashboardPreview: React.FC<DashboardPreviewProps> = ({
   repoUrl,
   validation,
   onBack,
 }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'explorer' | 'chat'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'explorer' | 'search' | 'chat'>('overview');
   const [status, setStatus] = useState<IndexingStatus | null>(null);
   const [details, setDetails] = useState<RepositoryDetail | null>(null);
   const [tree, setTree] = useState<TreeNode | null>(null);
@@ -60,6 +75,18 @@ export const DashboardPreview: React.FC<DashboardPreviewProps> = ({
   const [selectedFile, setSelectedFile] = useState<FileContent | null>(null);
   const [fileLoading, setFileLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchTopK, setSearchTopK] = useState(5);
+  const [searchLangFilter, setSearchLangFilter] = useState('');
+  const [searchTypeFilter, setSearchTypeFilter] = useState('');
+  const [searchResults, setSearchResults] = useState<SearchChunkResult[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchExecuted, setSearchExecuted] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [vectorStats, setVectorStats] = useState<VectorIndexStatus | null>(null);
+  const [reindexing, setReindexing] = useState(false);
 
   // Initialize analysis on load
   useEffect(() => {
@@ -71,7 +98,6 @@ export const DashboardPreview: React.FC<DashboardPreviewProps> = ({
         const initRes = await api.analyzeRepository(repoUrl);
         const repoId = initRes.repository_id;
 
-        // Poll status until complete or failed
         const checkStatus = async () => {
           try {
             const st = await api.getRepositoryStatus(repoId);
@@ -80,14 +106,15 @@ export const DashboardPreview: React.FC<DashboardPreviewProps> = ({
 
             if (st.status === 'completed') {
               clearInterval(pollInterval);
-              // Fetch details & tree
-              const [det, tr] = await Promise.all([
+              const [det, tr, vs] = await Promise.all([
                 api.getRepositoryDetails(repoId),
                 api.getRepositoryTree(repoId),
+                api.getVectorIndexStatus(repoId).catch(() => null),
               ]);
               if (isMounted) {
                 setDetails(det);
                 setTree(tr);
+                if (vs) setVectorStats(vs);
               }
             } else if (st.status === 'failed') {
               clearInterval(pollInterval);
@@ -143,6 +170,59 @@ export const DashboardPreview: React.FC<DashboardPreviewProps> = ({
     };
   }, [selectedFilePath, details]);
 
+  // Fetch vector store stats when switching to search tab
+  useEffect(() => {
+    if (activeTab === 'search' && details?.id) {
+      api.getVectorIndexStatus(details.id)
+        .then(setVectorStats)
+        .catch((e) => console.debug('Could not load vector stats:', e));
+    }
+  }, [activeTab, details]);
+
+  // Execute Semantic Code Search
+  const handleSearch = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!searchQuery.trim() || !details?.id) return;
+
+    setSearchLoading(true);
+    setSearchError(null);
+    setSearchExecuted(true);
+
+    try {
+      const res = await api.searchRepository(details.id, {
+        query: searchQuery.trim(),
+        top_k: searchTopK,
+        language: searchLangFilter || undefined,
+        symbol_type: searchTypeFilter || undefined,
+      });
+      setSearchResults(res.results);
+    } catch (err: any) {
+      console.error('Search failed:', err);
+      setSearchError(err.response?.data?.detail || err.message || 'Failed to execute semantic search.');
+      setSearchResults([]);
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  // Trigger manual vector re-indexing
+  const handleReindex = async () => {
+    if (!details?.id || reindexing) return;
+    setReindexing(true);
+    try {
+      await api.triggerReindex(details.id, true);
+      // Refresh status after trigger
+      const st = await api.getRepositoryStatus(details.id);
+      setStatus(st);
+      const vs = await api.getVectorIndexStatus(details.id);
+      setVectorStats(vs);
+    } catch (err: any) {
+      console.error('Re-index failed:', err);
+    } finally {
+      setReindexing(false);
+    }
+  };
+
   // Recursive Tree Component
   const renderTreeNodes = (nodes: TreeNode[] | undefined, depth = 0) => {
     if (!nodes) return null;
@@ -176,7 +256,6 @@ export const DashboardPreview: React.FC<DashboardPreviewProps> = ({
         );
       }
 
-      // Directory
       return (
         <div key={node.path || node.name}>
           <div
@@ -274,7 +353,7 @@ export const DashboardPreview: React.FC<DashboardPreviewProps> = ({
             <div className="mb-2 flex items-center justify-between text-xs">
               <div className="flex items-center space-x-2 text-indigo-400 font-medium">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                <span>{status?.current_stage || 'Cloning and analyzing repository...'}</span>
+                <span>{status?.current_stage || 'Cloning and vector indexing repository...'}</span>
               </div>
               <span className="font-mono text-slate-300">{status?.progress_pct || 0}%</span>
             </div>
@@ -292,65 +371,89 @@ export const DashboardPreview: React.FC<DashboardPreviewProps> = ({
           <div className="mt-6 flex items-center space-x-3 rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 text-xs text-rose-300">
             <AlertTriangle className="h-5 w-5 shrink-0 text-rose-400" />
             <div>
-              <p className="font-semibold text-rose-200">Repository Ingestion Error</p>
+              <p className="font-semibold text-rose-200">Repository Processing Error</p>
               <p className="mt-0.5 text-rose-300/90">{error}</p>
             </div>
           </div>
         )}
 
-        {/* Ingestion Pipeline Stages Status */}
+        {/* Ingestion & Vector Pipeline Stages Status */}
         <div className="mt-6 border-t border-slate-800/80 pt-6">
           <div className="mb-2 flex items-center justify-between text-xs">
             <span className="font-semibold text-slate-300 uppercase tracking-wider">
-              Ingestion Pipeline Status
+              Architecture Pipeline (Phases 1-4)
             </span>
             <span className="text-indigo-400 font-mono">
-              {isCompleted ? 'Phase 2: Ingestion & Filtering Complete' : 'Executing Phase 2'}
+              {isCompleted ? 'Phase 4: Structure-Aware Vector RAG Ready' : 'Processing Pipeline...'}
             </span>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-6">
+            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-2.5">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-emerald-400">1. URL Validation</span>
-                <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                <span className="text-[11px] font-semibold text-emerald-400">1. URL Check</span>
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
               </div>
-              <p className="mt-1 text-[11px] text-slate-400">Verified & Accessible</p>
+              <p className="mt-1 text-[10px] text-slate-400">Validated</p>
             </div>
 
-            <div className={`rounded-xl border p-3 ${isCompleted ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-indigo-500/30 bg-indigo-500/5'}`}>
+            <div className={`rounded-xl border p-2.5 ${isCompleted ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-indigo-500/30 bg-indigo-500/5'}`}>
               <div className="flex items-center justify-between">
-                <span className={`text-xs font-semibold ${isCompleted ? 'text-emerald-400' : 'text-indigo-300'}`}>
-                  2. Shallow Clone
+                <span className={`text-[11px] font-semibold ${isCompleted ? 'text-emerald-400' : 'text-indigo-300'}`}>
+                  2. Clone
                 </span>
-                {isCompleted ? <CheckCircle2 className="h-4 w-4 text-emerald-400" /> : <Loader2 className="h-4 w-4 animate-spin text-indigo-400" />}
+                {isCompleted ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> : <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-400" />}
               </div>
-              <p className="mt-1 text-[11px] text-slate-400">
-                {isCompleted ? 'Isolated (depth=1)' : 'In Progress'}
+              <p className="mt-1 text-[10px] text-slate-400">
+                {isCompleted ? 'Shallow (depth=1)' : 'Cloning'}
               </p>
             </div>
 
-            <div className={`rounded-xl border p-3 ${isCompleted ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-slate-800 bg-slate-900/40'}`}>
+            <div className={`rounded-xl border p-2.5 ${isCompleted ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-slate-800 bg-slate-900/40'}`}>
               <div className="flex items-center justify-between">
-                <span className={`text-xs font-semibold ${isCompleted ? 'text-emerald-400' : 'text-slate-300'}`}>
-                  3. File Filtering
+                <span className={`text-[11px] font-semibold ${isCompleted ? 'text-emerald-400' : 'text-slate-300'}`}>
+                  3. Filter
                 </span>
-                {isCompleted ? <CheckCircle2 className="h-4 w-4 text-emerald-400" /> : <Clock className="h-4 w-4 text-slate-500" />}
+                {isCompleted ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> : <Clock className="h-3.5 w-3.5 text-slate-500" />}
               </div>
-              <p className="mt-1 text-[11px] text-slate-400">
-                {isCompleted ? 'Binaries & Secrets Stripped' : 'Pending'}
+              <p className="mt-1 text-[10px] text-slate-400">
+                {isCompleted ? 'Cleaned' : 'Pending'}
               </p>
             </div>
 
-            <div className={`rounded-xl border p-3 ${isCompleted ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-slate-800 bg-slate-900/40'}`}>
+            <div className={`rounded-xl border p-2.5 ${isCompleted ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-slate-800 bg-slate-900/40'}`}>
               <div className="flex items-center justify-between">
-                <span className={`text-xs font-semibold ${isCompleted ? 'text-emerald-400' : 'text-slate-300'}`}>
-                  4. Static Analysis
+                <span className={`text-[11px] font-semibold ${isCompleted ? 'text-emerald-400' : 'text-slate-300'}`}>
+                  4. Tree-sitter
                 </span>
-                {isCompleted ? <CheckCircle2 className="h-4 w-4 text-emerald-400" /> : <Clock className="h-4 w-4 text-slate-500" />}
+                {isCompleted ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> : <Clock className="h-3.5 w-3.5 text-slate-500" />}
               </div>
-              <p className="mt-1 text-[11px] text-slate-400">
-                {isCompleted ? `${details?.file_count || 0} Files Cataloged` : 'Pending'}
+              <p className="mt-1 text-[10px] text-slate-400">
+                {isCompleted ? 'AST Symbols' : 'Pending'}
+              </p>
+            </div>
+
+            <div className={`rounded-xl border p-2.5 ${isCompleted ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-slate-800 bg-slate-900/40'}`}>
+              <div className="flex items-center justify-between">
+                <span className={`text-[11px] font-semibold ${isCompleted ? 'text-emerald-400' : 'text-slate-300'}`}>
+                  5. Chunking
+                </span>
+                {isCompleted ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> : <Clock className="h-3.5 w-3.5 text-slate-500" />}
+              </div>
+              <p className="mt-1 text-[10px] text-slate-400">
+                {isCompleted ? 'Structure-Aware' : 'Pending'}
+              </p>
+            </div>
+
+            <div className={`rounded-xl border p-2.5 ${isCompleted ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-slate-800 bg-slate-900/40'}`}>
+              <div className="flex items-center justify-between">
+                <span className={`text-[11px] font-semibold ${isCompleted ? 'text-emerald-400' : 'text-slate-300'}`}>
+                  6. ChromaDB
+                </span>
+                {isCompleted ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> : <Clock className="h-3.5 w-3.5 text-slate-500" />}
+              </div>
+              <p className="mt-1 text-[10px] text-slate-400">
+                {vectorStats ? `${vectorStats.total_chunks} Chunks` : 'Indexed'}
               </p>
             </div>
           </div>
@@ -384,6 +487,23 @@ export const DashboardPreview: React.FC<DashboardPreviewProps> = ({
         </button>
 
         <button
+          onClick={() => setActiveTab('search')}
+          className={`flex items-center space-x-2 border-b-2 px-3 py-2.5 text-sm font-medium transition-colors ${
+            activeTab === 'search'
+              ? 'border-indigo-500 text-indigo-400'
+              : 'border-transparent text-slate-400 hover:text-white'
+          }`}
+        >
+          <Search className="h-4 w-4" />
+          <span>Semantic Vector Search</span>
+          {vectorStats && vectorStats.total_chunks > 0 && (
+            <span className="rounded-full bg-indigo-500/20 px-2 py-0.5 text-[10px] font-mono text-indigo-300">
+              {vectorStats.total_chunks}
+            </span>
+          )}
+        </button>
+
+        <button
           onClick={() => setActiveTab('chat')}
           className={`flex items-center space-x-2 border-b-2 px-3 py-2.5 text-sm font-medium transition-colors ${
             activeTab === 'chat'
@@ -398,6 +518,7 @@ export const DashboardPreview: React.FC<DashboardPreviewProps> = ({
 
       {/* Tab Panels */}
       <div className="mt-6">
+        {/* OVERVIEW TAB */}
         {activeTab === 'overview' && (
           <div className="space-y-6">
             {/* Quick Stats Grid */}
@@ -415,9 +536,9 @@ export const DashboardPreview: React.FC<DashboardPreviewProps> = ({
               </div>
 
               <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
-                <span className="text-[11px] text-slate-500 uppercase tracking-wider font-semibold">Configuration Manifests</span>
-                <p className="mt-1 text-2xl font-bold text-emerald-400">{details?.manifest_files.length || 0}</p>
-                <span className="text-[11px] text-slate-400">Dependencies & build configs</span>
+                <span className="text-[11px] text-slate-500 uppercase tracking-wider font-semibold">Vector Chunks</span>
+                <p className="mt-1 text-2xl font-bold text-emerald-400">{vectorStats?.total_chunks || 0}</p>
+                <span className="text-[11px] text-slate-400">Indexed in ChromaDB</span>
               </div>
 
               <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
@@ -434,7 +555,6 @@ export const DashboardPreview: React.FC<DashboardPreviewProps> = ({
                   Language Distribution
                 </h3>
 
-                {/* Progress bar */}
                 <div className="mt-4 flex h-3 w-full overflow-hidden rounded-full bg-slate-800">
                   {details.languages.map((lang) => (
                     <div
@@ -446,76 +566,17 @@ export const DashboardPreview: React.FC<DashboardPreviewProps> = ({
                   ))}
                 </div>
 
-                {/* Legend */}
                 <div className="mt-4 flex flex-wrap gap-3">
                   {details.languages.map((lang) => (
                     <div key={lang.name} className="flex items-center space-x-2 text-xs">
                       <span className={`h-2.5 w-2.5 rounded-full ${LANGUAGE_COLORS[lang.name] || 'bg-slate-500'}`} />
-                      <span className="font-medium text-slate-300">{lang.name}</span>
-                      <span className="font-mono text-slate-500">{lang.percentage}%</span>
-                      <span className="text-slate-600">({lang.file_count} files)</span>
+                      <span className="text-slate-300 font-medium">{lang.name}</span>
+                      <span className="text-slate-500 font-mono">({lang.percentage}%)</span>
                     </div>
                   ))}
                 </div>
               </div>
             )}
-
-            {/* Manifests & Entry Points */}
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-6">
-                <h3 className="text-sm font-bold text-white uppercase tracking-wider">
-                  Identified Dependency Manifests
-                </h3>
-                <div className="mt-3 space-y-2">
-                  {details?.manifest_files && details.manifest_files.length > 0 ? (
-                    details.manifest_files.map((mf) => (
-                      <div
-                        key={mf}
-                        onClick={() => {
-                          setSelectedFilePath(mf);
-                          setActiveTab('explorer');
-                        }}
-                        className="flex cursor-pointer items-center justify-between rounded-xl border border-slate-800 bg-slate-950/60 p-2.5 text-xs text-slate-300 hover:border-indigo-500/40 hover:text-indigo-300"
-                      >
-                        <span className="font-mono">{mf}</span>
-                        <span className="rounded bg-indigo-500/10 px-2 py-0.5 text-[10px] text-indigo-400">
-                          Inspect
-                        </span>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-xs text-slate-500">No standard manifests identified.</p>
-                  )}
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-6">
-                <h3 className="text-sm font-bold text-white uppercase tracking-wider">
-                  Entry Point Candidates
-                </h3>
-                <div className="mt-3 space-y-2">
-                  {details?.entry_points && details.entry_points.length > 0 ? (
-                    details.entry_points.map((ep) => (
-                      <div
-                        key={ep}
-                        onClick={() => {
-                          setSelectedFilePath(ep);
-                          setActiveTab('explorer');
-                        }}
-                        className="flex cursor-pointer items-center justify-between rounded-xl border border-slate-800 bg-slate-950/60 p-2.5 text-xs text-slate-300 hover:border-purple-500/40 hover:text-purple-300"
-                      >
-                        <span className="font-mono">{ep}</span>
-                        <span className="rounded bg-purple-500/10 px-2 py-0.5 text-[10px] text-purple-400">
-                          Inspect
-                        </span>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-xs text-slate-500">No standard entry points identified.</p>
-                  )}
-                </div>
-              </div>
-            </div>
 
             {/* Extracted README */}
             {details?.readme_content && (
@@ -534,10 +595,9 @@ export const DashboardPreview: React.FC<DashboardPreviewProps> = ({
           </div>
         )}
 
-        {/* Code Explorer Tab */}
+        {/* CODE EXPLORER TAB */}
         {activeTab === 'explorer' && (
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-            {/* Left 4 Cols: Directory Tree */}
             <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4 lg:col-span-4 max-h-[700px] overflow-y-auto">
               <div className="mb-3 flex items-center justify-between border-b border-slate-800/80 pb-2">
                 <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
@@ -552,7 +612,6 @@ export const DashboardPreview: React.FC<DashboardPreviewProps> = ({
               </div>
             </div>
 
-            {/* Right 8 Cols: File Viewer */}
             <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4 lg:col-span-8 flex flex-col min-h-[500px]">
               {selectedFilePath ? (
                 <div>
@@ -608,7 +667,260 @@ export const DashboardPreview: React.FC<DashboardPreviewProps> = ({
           </div>
         )}
 
-        {/* Chat Tab Preview */}
+        {/* SEMANTIC VECTOR SEARCH TAB (PHASE 4) */}
+        {activeTab === 'search' && (
+          <div className="space-y-6">
+            {/* Search Input Bar & Filter Bar */}
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 backdrop-blur-md">
+              <form onSubmit={handleSearch} className="space-y-4">
+                <div className="relative flex items-center">
+                  <Search className="absolute left-4 h-5 w-5 text-slate-400" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search code semantics (e.g. 'JWT token verification' or 'database session pool')..."
+                    className="w-full rounded-xl border border-slate-700 bg-slate-950/80 py-3.5 pl-12 pr-28 text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                  <button
+                    type="submit"
+                    disabled={searchLoading || !searchQuery.trim()}
+                    className="absolute right-2 flex items-center space-x-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-indigo-500 disabled:opacity-50"
+                  >
+                    {searchLoading ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        <span>Searching...</span>
+                      </>
+                    ) : (
+                      <span>Search</span>
+                    )}
+                  </button>
+                </div>
+
+                {/* Filters Row */}
+                <div className="flex flex-wrap items-center gap-3 text-xs">
+                  <div className="flex items-center space-x-1.5 text-slate-400">
+                    <Filter className="h-3.5 w-3.5 text-indigo-400" />
+                    <span>Filters:</span>
+                  </div>
+
+                  {/* Language filter */}
+                  <select
+                    value={searchLangFilter}
+                    onChange={(e) => setSearchLangFilter(e.target.value)}
+                    className="rounded-lg border border-slate-800 bg-slate-950 px-2.5 py-1.5 text-slate-300 focus:border-indigo-500 focus:outline-none"
+                  >
+                    <option value="">All Languages</option>
+                    {details?.languages.map((l) => (
+                      <option key={l.name} value={l.name}>{l.name}</option>
+                    ))}
+                  </select>
+
+                  {/* Symbol Type filter */}
+                  <select
+                    value={searchTypeFilter}
+                    onChange={(e) => setSearchTypeFilter(e.target.value)}
+                    className="rounded-lg border border-slate-800 bg-slate-950 px-2.5 py-1.5 text-slate-300 focus:border-indigo-500 focus:outline-none"
+                  >
+                    <option value="">All Symbol Types</option>
+                    <option value="FUNCTION">Functions</option>
+                    <option value="METHOD">Methods</option>
+                    <option value="CLASS">Classes</option>
+                    <option value="INTERFACE">Interfaces</option>
+                    <option value="DOC">Documentation</option>
+                    <option value="CONFIG">Configuration</option>
+                  </select>
+
+                  {/* Top K selector */}
+                  <div className="flex items-center space-x-1.5">
+                    <span className="text-slate-500">Top Results:</span>
+                    <select
+                      value={searchTopK}
+                      onChange={(e) => setSearchTopK(Number(e.target.value))}
+                      className="rounded-lg border border-slate-800 bg-slate-950 px-2.5 py-1.5 text-slate-300 focus:border-indigo-500 focus:outline-none"
+                    >
+                      <option value={3}>3</option>
+                      <option value={5}>5</option>
+                      <option value={10}>10</option>
+                      <option value={20}>20</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Example Quick-Pick Queries */}
+                <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-800/60">
+                  <span className="text-[11px] text-slate-500">Try searching:</span>
+                  {EXAMPLE_QUERIES.map((q) => (
+                    <button
+                      key={q}
+                      type="button"
+                      onClick={() => {
+                        setSearchQuery(q);
+                      }}
+                      className="rounded-full border border-slate-800 bg-slate-950/60 px-2.5 py-1 text-[11px] text-slate-400 hover:border-indigo-500/40 hover:text-indigo-300"
+                    >
+                      {q}
+                    </button>
+                  ))}
+                </div>
+              </form>
+            </div>
+
+            {/* ChromaDB Vector Store Diagnostic Card */}
+            {vectorStats && (
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-xl border border-slate-800 bg-slate-900/40 p-4 text-xs">
+                <div className="flex items-center space-x-3">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                    <Database className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <span className="font-semibold text-white">ChromaDB Persistent Collection:</span>
+                      <span className="font-mono text-indigo-300">{vectorStats.collection_name}</span>
+                    </div>
+                    <p className="text-slate-400 mt-0.5">
+                      {vectorStats.total_chunks} structure-aware chunks indexed • Model: sentence-transformers/all-MiniLM-L6-v2 (384-dim)
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleReindex}
+                  disabled={reindexing}
+                  className="flex items-center space-x-1.5 rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-700 hover:text-white transition-colors disabled:opacity-50"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${reindexing ? 'animate-spin' : ''}`} />
+                  <span>{reindexing ? 'Re-indexing...' : 'Re-index Vectors'}</span>
+                </button>
+              </div>
+            )}
+
+            {/* Search Results Section */}
+            {searchLoading && (
+              <div className="flex flex-col items-center justify-center py-16 text-center text-slate-400">
+                <Loader2 className="h-8 w-8 animate-spin text-indigo-400" />
+                <p className="mt-3 text-sm font-semibold text-white">Generating Dense Vector Embeddings...</p>
+                <p className="mt-1 text-xs text-slate-500">Querying ChromaDB cosine similarity index</p>
+              </div>
+            )}
+
+            {searchError && (
+              <div className="flex items-center space-x-3 rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 text-xs text-rose-300">
+                <AlertTriangle className="h-5 w-5 shrink-0 text-rose-400" />
+                <p>{searchError}</p>
+              </div>
+            )}
+
+            {!searchLoading && searchExecuted && searchResults.length === 0 && !searchError && (
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-12 text-center text-slate-400">
+                <Code2 className="mx-auto h-10 w-10 text-slate-600" />
+                <h4 className="mt-3 text-sm font-bold text-white">No Matching Code Chunks</h4>
+                <p className="mt-1 text-xs text-slate-500">
+                  Try broadening your search query or removing language/symbol filters.
+                </p>
+              </div>
+            )}
+
+            {!searchLoading && searchResults.length > 0 && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between text-xs text-slate-400">
+                  <span>Found {searchResults.length} relevant code chunks:</span>
+                  <span className="font-mono text-[11px] text-slate-500">Ranked by Cosine Similarity</span>
+                </div>
+
+                {searchResults.map((res, idx) => {
+                  const matchPct = Math.round(res.similarity_score * 100);
+                  return (
+                    <div
+                      key={res.chunk_id || idx}
+                      className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 transition-all hover:border-slate-700"
+                    >
+                      {/* Top Header of Result */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
+                        <div className="flex items-center space-x-2">
+                          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-800 font-mono text-xs font-bold text-indigo-400">
+                            #{idx + 1}
+                          </span>
+                          <span className="font-mono text-xs font-semibold text-white">
+                            {res.file_path}
+                          </span>
+                          <span className="font-mono text-[11px] text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded">
+                            L{res.start_line}-L{res.end_line}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center space-x-2">
+                          {res.symbol_type && (
+                            <span className="rounded bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 text-[10px] font-semibold text-purple-300">
+                              {res.symbol_type}
+                            </span>
+                          )}
+                          <span className="rounded bg-slate-800 px-2 py-0.5 text-[10px] font-mono text-slate-400">
+                            {res.language}
+                          </span>
+                          <div className="flex items-center space-x-1 rounded bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
+                            <span>{matchPct}% match</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Symbol signature or docstring if available */}
+                      {(res.symbol_name || res.docstring) && (
+                        <div className="mt-2.5 flex flex-wrap items-center gap-2 text-xs">
+                          {res.symbol_name && (
+                            <span className="font-mono text-xs text-indigo-300">
+                              symbol: <span className="font-bold">{res.symbol_name}</span>
+                            </span>
+                          )}
+                          {res.docstring && (
+                            <span className="text-[11px] text-slate-400 truncate max-w-lg italic">
+                              "{res.docstring}"
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Code Snippet Box with Syntax Table */}
+                      <div className="mt-3 max-h-64 overflow-y-auto rounded-lg border border-slate-950 bg-slate-950/90 p-3 font-mono text-xs text-slate-200">
+                        <div className="table w-full">
+                          {res.source_code.split('\n').map((line, lIdx) => (
+                            <div key={lIdx} className="table-row hover:bg-slate-900/50">
+                              <span className="table-cell select-none pr-3 text-right text-slate-600 font-mono text-[10px] w-10">
+                                {res.start_line + lIdx}
+                              </span>
+                              <span className="table-cell whitespace-pre font-mono text-slate-300 text-[11px]">
+                                {line || ' '}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Action to view in explorer */}
+                      <div className="mt-3 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedFilePath(res.file_path);
+                            setActiveTab('explorer');
+                          }}
+                          className="flex items-center space-x-1.5 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                        >
+                          <span>Open in Code Explorer</span>
+                          <ExternalLink className="h-3 w-3" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* CHAT TAB PREVIEW */}
         {activeTab === 'chat' && (
           <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-8 text-center">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
@@ -616,17 +928,20 @@ export const DashboardPreview: React.FC<DashboardPreviewProps> = ({
             </div>
             <h3 className="mt-4 text-xl font-bold text-white">Grounded RAG Chat Engine</h3>
             <p className="mx-auto mt-2 max-w-lg text-sm text-slate-400">
-              Repository ingestion and file filtering are complete. The next phases will parse AST syntax nodes via Tree-sitter, vectorize into ChromaDB, construct the NetworkX Knowledge Graph, and activate grounded chat with clickable line citations.
+              Repository ingestion, AST parsing, and ChromaDB vector representations are active. You can now execute semantic code search in the tab above. The upcoming phases will construct the NetworkX Knowledge Graph and connect Gemini for interactive grounded chat.
             </p>
 
             <div className="mt-8 mx-auto max-w-xl text-left rounded-xl border border-slate-800 bg-slate-950/60 p-4">
               <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
-                Ready for Phase 3:
+                Phase Progress:
               </span>
               <ul className="mt-2 space-y-1.5 text-xs text-slate-400">
-                <li>• Parse functions, classes & methods via Tree-sitter</li>
-                <li>• Extract static call relationships & inheritance</li>
-                <li>• Generate dense MiniLM embeddings</li>
+                <li className="text-emerald-400">✓ Phase 1: Foundation Architecture</li>
+                <li className="text-emerald-400">✓ Phase 2: Ingestion & File Filtering</li>
+                <li className="text-emerald-400">✓ Phase 3: Tree-sitter Code Understanding</li>
+                <li className="text-emerald-400">✓ Phase 4: Structure-Aware Vector RAG & ChromaDB Persistent Storage</li>
+                <li className="text-slate-500">⏳ Phase 5: Knowledge Graph Construction (NetworkX)</li>
+                <li className="text-slate-500">⏳ Phase 6: Hybrid Vector + Graph Retrieval & Gemini Chat</li>
               </ul>
             </div>
           </div>

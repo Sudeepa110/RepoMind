@@ -86,4 +86,41 @@ export interface FileContent {
   content: string;
 }
 
+export interface SearchChunkResult {
+  chunk_id: string;
+  repository_id: string;
+  file_path: string;
+  symbol_id?: string;
+  symbol_name?: string;
+  symbol_type?: string;
+  language: string;
+  start_line: number;
+  end_line: number;
+  source_code: string;
+  signature?: string;
+  docstring?: string;
+  context_header?: string;
+  similarity_score: number;
+  distance: number;
+  part_index: number;
+  total_parts: number;
+}
+
+export interface SearchResponse {
+  query: string;
+  repository_id: string;
+  total_results: number;
+  results: SearchChunkResult[];
+}
+
+export interface VectorIndexStatus {
+  repository_id: string;
+  collection_name: string;
+  total_chunks: number;
+  language_breakdown: Record<string, number>;
+  symbol_type_breakdown: Record<string, number>;
+  status: string;
+  persist_directory: string;
+}
+
 export type AppView = 'landing' | 'dashboard';

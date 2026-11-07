@@ -81,13 +81,30 @@ Static call extraction distinguishes between confirmed syntax, inferred relation
 
 ---
 
-## 2. Pipeline A: Vector RAG
+## 2. Pipeline A: Vector RAG & Persistent Storage (Phase 4 Completed)
 
 Responsible for retrieving semantically relevant code snippets, comments, docstrings, and architectural summaries:
-- **Chunker**: Logical structure-aware chunking preserving syntax integrity.
-- **Embedding Model**: `sentence-transformers/all-MiniLM-L6-v2` (384-dimensional dense vectors generated locally).
-- **Vector Database**: ChromaDB collections partitioned per repository.
-- **Retrieval**: Dense cosine similarity + sparse BM25 keyword matching with Reciprocal Rank Fusion.
+- **Chunker (`StructureAwareChunker`)**:
+  - Direct consumption of Phase 3 AST intermediate representation (`ParsedRepository`).
+  - Prioritizes semantic AST symbols (functions, methods, classes, interfaces).
+  - Preserves exact 1-indexed line references, symbol IDs, and SHA-256 `content_hash` fingerprints.
+  - Splits oversized symbols (>100 lines or >3000 chars) into overlapping sub-chunks (20 line overlap) with part indicators (`Part X of Y`) without dropping surrounding context.
+  - Semantic fallback chunking for Markdown documentation (`DOC` symbols split on `#`, `##`, `###` headings).
+  - Sliding-window fallback chunking for configuration manifests (`package.json`, `requirements.txt`, Dockerfiles).
+- **Embedding Model (`LocalSentenceTransformerService`)**:
+  - `sentence-transformers/all-MiniLM-L6-v2` (384-dimensional dense vectors).
+  - Zero-cost, 100% local CPU execution with automatic CUDA GPU acceleration probe.
+  - Batching support (default batch size 32) and normalized cosine embeddings.
+- **Vector Database (`ChromaVectorStore`)**:
+  - Persistent ChromaDB storage located at `storage/chroma/`.
+  - Strict repository collection isolation via sanitized collection identifiers (`repo_{sanitized_repo_id}`).
+  - Primitive metadata flattening (`repository_id`, `file_path`, `symbol_id`, `symbol_name`, `symbol_type`, `language`, `start_line`, `end_line`, `content_hash`, `part_index`).
+  - Cosine distance metric with bounded similarity scores (`1.0 - distance / 2.0`).
+  - Incremental indexing deduplication: skips embedding chunks whose `content_hash` has not changed.
+  - Complete repository lifecycle cleanup (`delete_repository`).
+- **Retrieval Service (`SemanticSearchService`)**:
+  - High-level query embedding and semantic search with metadata filtering (language, file path, symbol type).
+  - Validated ground-truth benchmarks: 100% Precision@1, 100% Recall@3, and 100% exact line citation accuracy.
 
 ---
 

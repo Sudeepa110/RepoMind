@@ -19,12 +19,19 @@ from backend.app.schemas.repository import (
     RepositoryListItem,
     FileContentResponse,
 )
+from backend.app.schemas.search import (
+    SearchRequest,
+    SearchResponse,
+    SearchChunkResult,
+    VectorIndexStatusResponse,
+)
 from backend.app.utils.validators import validate_github_url, verify_github_repo_accessible
 from backend.app.services.indexing import (
     get_or_create_repository,
     process_repository_job,
 )
 from backend.app.ingestion.cloner import cleanup_workspace
+from backend.app.retrieval.semantic_search import semantic_search_service
 
 router = APIRouter(prefix="/repositories", tags=["Repositories"])
 
@@ -114,8 +121,8 @@ async def analyze_repository_endpoint(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Triggers asynchronous shallow cloning, file filtering, and static analysis
-    for a public GitHub repository.
+    Triggers asynchronous shallow cloning, file filtering, static analysis,
+    Tree-sitter AST parsing, and ChromaDB vector indexing for a public GitHub repository.
     """
     is_valid, owner, name, err_msg = validate_github_url(req.url)
     if not is_valid:
@@ -140,13 +147,13 @@ async def analyze_repository_endpoint(
             )
 
         # Trigger background processing task
-        background_tasks.add_task(process_repository_job, job.id, repo.id, repo.url)
+        background_tasks.add_task(process_repository_job, job.id, repo.id, repo.url, req.force_reindex)
 
         return RepositoryAnalyzeResponse(
             repository_id=repo.id,
             job_id=job.id,
             status="queued",
-            message="Repository queued for background shallow cloning and static analysis.",
+            message="Repository queued for background ingestion, AST parsing, and vector indexing.",
         )
 
     except Exception as e:
@@ -227,7 +234,6 @@ async def get_repository_tree(
     db: AsyncSession = Depends(get_db),
 ):
     """Returns the nested directory tree of the indexed repository."""
-    # Check repository exists
     stmt = select(RepositoryModel).where(RepositoryModel.id == repository_id)
     result = await db.execute(stmt)
     repo = result.scalar_one_or_none()
@@ -258,7 +264,6 @@ async def get_repository_file(
     Safely retrieves a specific sanitized source file's contents with line count.
     Guarded against path traversal attacks.
     """
-    # Path traversal validation
     clean_path = path.replace("\\", "/").strip("/")
     if ".." in clean_path.split("/") or clean_path.startswith("/"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid path traversal sequence.")
@@ -266,7 +271,6 @@ async def get_repository_file(
     workspace_dir = settings.STORAGE_DIR / "temp_repos" / repository_id
     target_file = workspace_dir / clean_path
 
-    # Verify target file is strictly inside the workspace
     try:
         resolved_target = target_file.resolve()
         resolved_workspace = workspace_dir.resolve()
@@ -280,7 +284,7 @@ async def get_repository_file(
 
     try:
         with open(target_file, "r", encoding="utf-8", errors="replace") as f:
-            content = f.read(500 * 1024)  # cap read at 500 KB for safety
+            content = f.read(500 * 1024)
         
         lines = len(content.splitlines())
         size = target_file.stat().st_size
@@ -320,12 +324,16 @@ async def list_repositories(db: AsyncSession = Depends(get_db)):
         for r in repos
     ]
 
-@router.delete("/{repository_id}")
-async def delete_repository(
+@router.post("/{repository_id}/index", response_model=RepositoryAnalyzeResponse)
+async def trigger_vector_indexing(
     repository_id: str,
+    background_tasks: BackgroundTasks,
+    force_reindex: bool = Query(True, description="Whether to force complete re-indexing"),
     db: AsyncSession = Depends(get_db),
 ):
-    """Deletes repository metadata and cleans up storage."""
+    """
+    Manually triggers vector re-indexing for a repository.
+    """
     stmt = select(RepositoryModel).where(RepositoryModel.id == repository_id)
     result = await db.execute(stmt)
     repo = result.scalar_one_or_none()
@@ -333,7 +341,118 @@ async def delete_repository(
     if not repo:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found.")
 
-    # Cleanup disk files
+    repo, job, _ = await get_or_create_repository(repo.url, db, force_reindex=force_reindex)
+    background_tasks.add_task(process_repository_job, job.id, repo.id, repo.url, force_reindex)
+
+    return RepositoryAnalyzeResponse(
+        repository_id=repo.id,
+        job_id=job.id,
+        status="queued",
+        message="Vector re-indexing job queued successfully.",
+    )
+
+@router.get("/{repository_id}/index/status", response_model=VectorIndexStatusResponse)
+async def get_vector_index_status(
+    repository_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Retrieves vector collection statistics: total chunks, language breakdown, and symbol breakdown.
+    """
+    stmt = select(RepositoryModel).where(RepositoryModel.id == repository_id)
+    result = await db.execute(stmt)
+    repo = result.scalar_one_or_none()
+
+    if not repo:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found.")
+
+    stats = semantic_search_service.get_stats(repository_id)
+
+    return VectorIndexStatusResponse(
+        repository_id=stats.repository_id,
+        collection_name=stats.collection_name,
+        total_chunks=stats.total_chunks,
+        language_breakdown=stats.language_breakdown,
+        symbol_type_breakdown=stats.symbol_type_breakdown,
+        status="ready" if stats.total_chunks > 0 else repo.status,
+        persist_directory=stats.persist_directory,
+    )
+
+@router.post("/{repository_id}/search", response_model=SearchResponse)
+async def search_repository_vectors(
+    repository_id: str,
+    req: SearchRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Executes semantic vector similarity search against the repository's code chunks.
+    Filters by language, file path, and symbol type if specified.
+    """
+    stmt = select(RepositoryModel).where(RepositoryModel.id == repository_id)
+    result = await db.execute(stmt)
+    repo = result.scalar_one_or_none()
+
+    if not repo:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found.")
+
+    loop = asyncio.get_running_loop()
+    raw_results = await loop.run_in_executor(
+        None,
+        semantic_search_service.search,
+        repository_id,
+        req.query,
+        req.top_k,
+        req.language,
+        req.file_path,
+        req.symbol_type,
+    )
+
+    formatted_results: List[SearchChunkResult] = []
+    for r in raw_results:
+        c = r.chunk
+        formatted_results.append(
+            SearchChunkResult(
+                chunk_id=c.chunk_id,
+                repository_id=c.repository_id,
+                file_path=c.file_path,
+                symbol_id=c.symbol_id,
+                symbol_name=c.symbol_name,
+                symbol_type=c.symbol_type,
+                language=c.language,
+                start_line=c.start_line,
+                end_line=c.end_line,
+                source_code=c.source_code,
+                signature=c.signature,
+                docstring=c.docstring,
+                context_header=c.context_header,
+                similarity_score=r.similarity_score,
+                distance=r.distance,
+                part_index=c.part_index,
+                total_parts=c.total_parts,
+            )
+        )
+
+    return SearchResponse(
+        query=req.query,
+        repository_id=repository_id,
+        total_results=len(formatted_results),
+        results=formatted_results,
+    )
+
+@router.delete("/{repository_id}")
+async def delete_repository(
+    repository_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Deletes repository metadata, vector collection, and cleans up storage."""
+    stmt = select(RepositoryModel).where(RepositoryModel.id == repository_id)
+    result = await db.execute(stmt)
+    repo = result.scalar_one_or_none()
+
+    if not repo:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Repository not found.")
+
+    # 1. Cleanup disk files
     workspace_dir = settings.STORAGE_DIR / "temp_repos" / repository_id
     cleanup_workspace(workspace_dir)
 
@@ -344,7 +463,11 @@ async def delete_repository(
         except OSError:
             pass
 
+    # 2. Cleanup ChromaDB collection
+    semantic_search_service.delete_repository(repository_id)
+
+    # 3. Cleanup SQLite record
     await db.delete(repo)
     await db.commit()
 
-    return {"status": "success", "message": f"Repository '{repo.owner}/{repo.name}' deleted successfully."}
+    return {"status": "success", "message": f"Repository '{repo.owner}/{repo.name}' and all vector indexes deleted successfully."}
