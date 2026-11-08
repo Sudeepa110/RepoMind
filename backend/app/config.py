@@ -28,6 +28,9 @@ class Settings(BaseModel):
     # Google Gemini Configuration (Zero-Cost / Free-Tier)
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
     GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+    GEMINI_TEMPERATURE: float = float(os.getenv("GEMINI_TEMPERATURE", "0.2"))
+    GEMINI_MAX_OUTPUT_TOKENS: int = int(os.getenv("GEMINI_MAX_OUTPUT_TOKENS", "4096"))
+    GEMINI_TIMEOUT_SECONDS: int = int(os.getenv("GEMINI_TIMEOUT_SECONDS", "45"))
 
     # Embeddings, Vector Store & Knowledge Graph
     EMBEDDING_MODEL_NAME: str = os.getenv(

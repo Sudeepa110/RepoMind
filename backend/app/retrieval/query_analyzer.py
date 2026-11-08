@@ -255,3 +255,4 @@ class QueryAnalyzer:
 
 # Global singleton instance
 query_analyzer = QueryAnalyzer()
+

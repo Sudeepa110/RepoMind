@@ -119,3 +119,4 @@ def test_context_assembler_budget_truncation(assembler):
     context = assembler.assemble(query=query, results=results, graph_evidence=[], max_chars=600)
     assert context.total_code_chunks < 5
     assert "[Remaining code chunks truncated to stay within token context limits]" in context.formatted_context
+

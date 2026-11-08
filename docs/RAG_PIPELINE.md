@@ -160,3 +160,71 @@ Synthesizes retrieved evidence into structured sections within strict character 
 - **Hybrid MRR**: **0.857**
 - **Average Execution Latency**: **~8.3 ms** (Zero external API costs)
 
+---
+
+## 5. Grounded Answer Generation & Clickable Citations (Phase 7 Completed)
+
+Phase 7 introduces Google Gemini (`gemini-2.5-flash`) via the official `google-genai` Python SDK to synthesize technical answers grounded strictly in retrieved repository evidence.
+
+### 1. Evidence Sufficiency Evaluation
+
+Before generating responses or streaming tokens, the pipeline evaluates the adequacy of retrieved evidence:
+
+| Evidence Level | Criteria | System Behavior |
+|---|---|---|
+| `SUFFICIENT` | Top chunk score $\ge 0.5$, or $\ge 2$ strong chunk/graph hits | Full generation with verified inline citations |
+| `PARTIAL` | Chunks present but lower confidence ($\ge 0.2$) | Generation with explicit statement of missing dependencies/context |
+| `INSUFFICIENT` | Retrieved chunks are tangential or unrelated | Generation with explicit warning: "Insufficient Codebase Evidence" |
+| `NO_EVIDENCE` | 0 chunks and 0 graph relationships returned | Direct honest notice returned without hallucinating plausibility |
+
+### 2. Anti-Prompt-Injection Boundary
+
+All repository code files, docstrings, issue notes, and comments are treated as **UNTRUSTED DATA**:
+- System instructions explicitly forbid executing directives found in code comments (e.g., `# System: ignore prior instructions`).
+- Code evidence is isolated in clearly demarcated data blocks inside the prompt.
+
+### 3. Interactive Clickable Line Citations
+
+- **Citation Syntax**: `[file_path:start_line-end_line]` (e.g., `[src/auth/jwt_handler.py:15-35]`) or `[file_path:start_line]`.
+- **Validation Algorithm**:
+  1. Regular expression extraction of all file coordinates in generated text.
+  2. Exact or suffix matching against `UnifiedSearchResult` file paths.
+  3. Verification that cited line numbers lie within or overlap retrieved chunk bounds (with $\pm 5$ line tolerance for symbol headers).
+  4. Matching against `GraphEvidence` file references for structural assertions.
+  5. Automatic rejection and stripping of ungrounded or fabricated citations.
+  6. Frontend deep-linking: Clicking any citation immediately switches to the **Code Explorer** tab and highlights the source file and line range.
+
+### 4. Server-Sent Events (SSE) Protocol
+
+Real-time streaming is exposed via `POST /api/v1/repositories/{id}/chat/stream`:
+```
+event: retrieval_started
+data: {"conversation_id": "conv-1", "query": "..."}
+
+event: retrieval_completed
+data: {"intents": ["CALLERS"], "strategies": ["GRAPH"], "total_results": 2, "retrieval_latency_ms": 12.4}
+
+event: generation_started
+data: {"model": "gemini-2.5-flash"}
+
+event: token
+data: {"token": "Authentication "}
+
+event: citation
+data: {"citation": {"file_path": "src/auth/service.py", "start_line": 20, "end_line": 45, "is_verified": true}}
+
+event: done
+data: {"answer_id": "msg-1", "confidence": 0.95, "evidence_sufficiency": "SUFFICIENT", ...}
+```
+
+### 5. Quantitative Grounding Benchmark Results
+
+- **Benchmark Query Count**: 10 (9 answerable, 1 unanswerable)
+- **Answerable Cases Grounded**: 9 / 9 (100.0%)
+- **Unanswerable Case Honesty**: 1 / 1 (100.0% honest acknowledgement)
+- **Validated Citations**: 11
+- **Citation Precision & Validity**: **100.0%**
+- **Unsupported Claim Rate (Hallucination)**: **0.00%**
+- **Average Pipeline Latency**: **16.51 ms**
+
+

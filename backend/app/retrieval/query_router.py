@@ -168,3 +168,4 @@ class QueryRouter:
 
 # Global singleton instance
 query_router = QueryRouter()
+

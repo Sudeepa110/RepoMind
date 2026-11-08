@@ -60,3 +60,4 @@ async def analyze_query_endpoint(
     await _verify_repository_exists(repository_id, db)
     analysis = query_analyzer.analyze(request.query)
     return analysis
+

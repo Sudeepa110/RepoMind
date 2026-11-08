@@ -130,3 +130,4 @@ class ContextAssembler:
 
 # Global singleton instance
 context_assembler = ContextAssembler()
+

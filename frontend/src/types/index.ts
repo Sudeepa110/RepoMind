@@ -342,3 +342,75 @@ export interface HybridRetrievalResponse {
 }
 
 export type AppView = 'landing' | 'dashboard';
+
+export interface Citation {
+  citation_id: string;
+  file_path: string;
+  start_line: number;
+  end_line: number;
+  symbol_name?: string;
+  symbol_type?: string;
+  source_excerpt?: string;
+  retrieval_source: string;
+  confidence: number;
+  is_verified: boolean;
+  reason?: string;
+}
+
+export interface ChatMessageItem {
+  id: string;
+  conversation_id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  citations: Citation[];
+  retrieval_intents: string[];
+  retrieval_sources: string[];
+  confidence: number;
+  insufficient_evidence: boolean;
+  generation_model?: string;
+  generation_latency_ms?: number;
+  retrieval_latency_ms?: number;
+  created_at: string;
+}
+
+export interface ConversationListItem {
+  id: string;
+  repository_id: string;
+  title: string;
+  message_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConversationDetail {
+  id: string;
+  repository_id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+  messages: ChatMessageItem[];
+}
+
+export interface ChatStreamRequest {
+  query: string;
+  conversation_id?: string;
+  top_k?: number;
+  temperature?: number;
+}
+
+export interface StructuredAnswer {
+  answer_id: string;
+  conversation_id: string;
+  repository_id: string;
+  content: string;
+  citations: Citation[];
+  retrieval_intents: string[];
+  retrieval_sources: string[];
+  confidence: number;
+  evidence_sufficiency: 'SUFFICIENT' | 'PARTIAL' | 'INSUFFICIENT' | 'NO_EVIDENCE';
+  generation_model: string;
+  generation_latency_ms: number;
+  retrieval_latency_ms: number;
+  warnings: string[];
+}
+

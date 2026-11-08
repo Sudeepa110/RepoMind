@@ -199,3 +199,4 @@ async def test_hybrid_retrieval_api_endpoints(sample_hybrid_repo):
         diag_data = diag_res.json()
         assert "CALLEES" in diag_data["intents"]
         assert "login_user" in diag_data["extracted_symbols"]
+

@@ -122,3 +122,4 @@ class HybridRetrievalResponse(BaseModel):
     execution_times: Dict[str, float] = Field(default_factory=dict)
     warnings: List[str] = Field(default_factory=list)
     diagnostics: Dict[str, Any] = Field(default_factory=dict)
+

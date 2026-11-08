@@ -19,6 +19,11 @@ import type {
   HybridSearchRequest,
   HybridRetrievalResponse,
   QueryAnalysisResult,
+  ConversationListItem,
+  ConversationDetail,
+  ChatStreamRequest,
+  StructuredAnswer,
+  Citation,
 } from '../types';
 
 const API_BASE = '/api/v1';
@@ -189,5 +194,138 @@ export const api = {
       { query }
     );
     return res.data;
+  },
+
+  async createConversation(repositoryId: string, title?: string): Promise<ConversationDetail> {
+    const res = await apiClient.post<ConversationDetail>(
+      `/repositories/${repositoryId}/conversations`,
+      { title }
+    );
+    return res.data;
+  },
+
+  async listConversations(repositoryId: string): Promise<ConversationListItem[]> {
+    const res = await apiClient.get<ConversationListItem[]>(
+      `/repositories/${repositoryId}/conversations`
+    );
+    return res.data;
+  },
+
+  async getConversation(repositoryId: string, conversationId: string): Promise<ConversationDetail> {
+    const res = await apiClient.get<ConversationDetail>(
+      `/repositories/${repositoryId}/conversations/${conversationId}`
+    );
+    return res.data;
+  },
+
+  async deleteConversation(repositoryId: string, conversationId: string): Promise<{ message: string }> {
+    const res = await apiClient.delete<{ message: string }>(
+      `/repositories/${repositoryId}/conversations/${conversationId}`
+    );
+    return res.data;
+  },
+
+  async chatSync(repositoryId: string, payload: ChatStreamRequest): Promise<StructuredAnswer> {
+    const res = await apiClient.post<StructuredAnswer>(
+      `/repositories/${repositoryId}/chat`,
+      payload
+    );
+    return res.data;
+  },
+
+  async streamChat(
+    repositoryId: string,
+    payload: ChatStreamRequest,
+    callbacks: {
+      onRetrievalStarted?: (data: any) => void;
+      onRetrievalCompleted?: (data: any) => void;
+      onGenerationStarted?: (data: any) => void;
+      onToken?: (token: string) => void;
+      onCitation?: (citation: Citation) => void;
+      onDone?: (answer: any) => void;
+      onError?: (error: { error: string; error_type: string }) => void;
+    },
+    signal?: AbortSignal
+  ): Promise<void> {
+    const response = await fetch(`${API_BASE}/repositories/${repositoryId}/chat/stream`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+      signal,
+    });
+
+    if (!response.ok) {
+      let errorDetail = 'Failed to connect to chat stream';
+      try {
+        const errorJson = await response.json();
+        errorDetail = errorJson.detail || errorDetail;
+      } catch {
+        // fallback
+      }
+      if (callbacks.onError) {
+        callbacks.onError({ error: errorDetail, error_type: 'HttpError' });
+      }
+      return;
+    }
+
+    if (!response.body) {
+      if (callbacks.onError) {
+        callbacks.onError({ error: 'Response body is null', error_type: 'StreamError' });
+      }
+      return;
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n\n');
+      buffer = lines.pop() || '';
+
+      for (const block of lines) {
+        if (!block.trim()) continue;
+        const eventMatch = block.match(/^event:\s*(.+)$/m);
+        const dataMatch = block.match(/^data:\s*(.+)$/m);
+
+        const eventType = eventMatch ? eventMatch[1].trim() : 'message';
+        const dataStr = dataMatch ? dataMatch[1].trim() : '{}';
+
+        try {
+          const data = JSON.parse(dataStr);
+          switch (eventType) {
+            case 'retrieval_started':
+              callbacks.onRetrievalStarted?.(data);
+              break;
+            case 'retrieval_completed':
+              callbacks.onRetrievalCompleted?.(data);
+              break;
+            case 'generation_started':
+              callbacks.onGenerationStarted?.(data);
+              break;
+            case 'token':
+              callbacks.onToken?.(data.token || '');
+              break;
+            case 'citation':
+              callbacks.onCitation?.(data.citation);
+              break;
+            case 'done':
+              callbacks.onDone?.(data);
+              break;
+            case 'error':
+              callbacks.onError?.(data);
+              break;
+          }
+        } catch (e) {
+          console.error('Failed to parse SSE event chunk:', e, block);
+        }
+      }
+    }
   },
 };

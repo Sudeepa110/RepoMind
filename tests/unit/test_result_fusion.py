@@ -98,3 +98,4 @@ def test_rrf_top_k_limiting(fusion):
 
     assert len(ranked) == 3
     assert [r.chunk_id for r in ranked] == ["c_0", "c_1", "c_2"]
+

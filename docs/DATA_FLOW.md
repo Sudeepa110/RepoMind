@@ -193,3 +193,72 @@ sequenceDiagram
     API-->>Frontend: JSON with execution times, intents, graph evidence & chunks
     Frontend-->>User: Render strategy badges, RRF scores, code snippets & citations
 ```
+
+---
+
+## 4. Phase 7: Conversational Grounded Query Flow & Streaming SSE
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User
+    participant Frontend as React Chat Dashboard
+    participant API as FastAPI Router (/repositories/{id}/chat/stream)
+    participant GenService as GenerationService
+    participant ConvService as ConversationService
+    participant SQLite as SQLite DB (Conversations & Messages)
+    participant Retriever as HybridRetriever (Phase 6 Engine)
+    participant Gemini as Google Gemini (gemini-2.5-flash)
+    participant Validator as CitationValidator
+
+    User->>Frontend: Submit question in active chat session
+    Frontend->>API: POST /api/v1/repositories/{id}/chat/stream (SSE)
+    API->>GenService: stream_answer(repository_id, request)
+
+    GenService->>API: event: retrieval_started
+    API-->>Frontend: Stream: retrieval_started
+    
+    GenService->>ConvService: add_message(role='user', content=query)
+    ConvService->>SQLite: Persist user message & update title
+
+    Note over GenService,Retriever: Execute Hybrid Retrieval (Phase 6 Pipeline)
+    GenService->>Retriever: hybrid_search(repo_id, request)
+    Retriever-->>GenService: HybridRetrievalResponse (Chunks + Graph Evidence)
+
+    GenService->>API: event: retrieval_completed
+    API-->>Frontend: Stream: retrieval_completed (chunks, latency, intents)
+
+    Note over GenService: Evidence Sufficiency Evaluation
+    alt NO_EVIDENCE
+        GenService->>API: event: generation_started
+        GenService->>API: event: token ("The indexed repository does not contain sufficient evidence...")
+        GenService->>ConvService: add_message(role='assistant', insufficient=True)
+        GenService->>API: event: done
+        API-->>Frontend: Stream: done (0% hallucination)
+    else SUFFICIENT or PARTIAL
+        GenService->>API: event: generation_started
+        Note over GenService,Gemini: Build Prompt with Untrusted Data Boundary
+        GenService->>Gemini: generate_stream(prompt, system_instruction)
+        
+        loop Token Streaming
+            Gemini-->>GenService: Yield token chunk
+            GenService->>API: event: token (chunk)
+            API-->>Frontend: Render streaming text in real-time
+        end
+
+        Note over GenService,Validator: Citation Validation against Ground Truth
+        GenService->>Validator: validate_citations(full_text, retrieved_chunks, graph_evidence)
+        Validator-->>GenService: Validated & verified citations list
+        
+        loop Emit Citations
+            GenService->>API: event: citation (validated coordinates)
+            API-->>Frontend: Render verified citation pill
+        end
+
+        GenService->>ConvService: add_message(role='assistant', content, citations)
+        ConvService->>SQLite: Persist assistant message
+
+        GenService->>API: event: done (metrics, latencies, confidence)
+        API-->>Frontend: Stream: done
+    end
+```

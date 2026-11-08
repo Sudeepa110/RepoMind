@@ -29,6 +29,12 @@ import {
   Copy,
   Check,
   Workflow,
+  Send,
+  Trash2,
+  Plus,
+  Bot,
+  User,
+  StopCircle,
 } from 'lucide-react';
 import { api } from '../services/api';
 import type {
@@ -46,6 +52,9 @@ import type {
   ImpactAnalysisResponse,
   SubgraphResponse,
   HybridRetrievalResponse,
+  ConversationListItem,
+  ChatMessageItem,
+  Citation,
 } from '../types';
 
 interface DashboardPreviewProps {
@@ -127,6 +136,26 @@ export const DashboardPreview: React.FC<DashboardPreviewProps> = ({
   const [graphNodeTypeFilter, setGraphNodeTypeFilter] = useState('');
   const [hierarchySymbol, setHierarchySymbol] = useState('');
   const [impactTarget, setImpactTarget] = useState('');
+
+  // Conversational Chat State (Phase 7)
+  const [conversations, setConversations] = useState<ConversationListItem[]>([]);
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [chatMessages, setChatMessages] = useState<ChatMessageItem[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatStreamingText, setChatStreamingText] = useState('');
+  const [chatStreamingRetrieval, setChatStreamingRetrieval] = useState<{
+    intents: string[];
+    strategies: string[];
+    total: number;
+    graphEvidenceCount: number;
+    latency: number;
+  } | null>(null);
+  const [chatStreamingCitations, setChatStreamingCitations] = useState<Citation[]>([]);
+  const [chatError, setChatError] = useState<string | null>(null);
+  const [chatTopK, setChatTopK] = useState(5);
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [chatAbortController, setChatAbortController] = useState<AbortController | null>(null);
 
   // Initialize analysis on load
   useEffect(() => {
@@ -361,6 +390,247 @@ export const DashboardPreview: React.FC<DashboardPreviewProps> = ({
     } finally {
       setGraphLoading(false);
     }
+  };
+
+  // Conversational Chat Handlers (Phase 7)
+  const loadConversations = async (repoId: string) => {
+    try {
+      const list = await api.listConversations(repoId);
+      setConversations(list);
+      if (list.length > 0 && !activeConversationId) {
+        handleSelectConversation(list[0].id, repoId);
+      }
+    } catch (err) {
+      console.error('Failed to load conversations:', err);
+    }
+  };
+
+  const handleSelectConversation = async (convId: string, repoIdOverride?: string) => {
+    const repoId = repoIdOverride || details?.id;
+    if (!repoId) return;
+    setActiveConversationId(convId);
+    try {
+      const detail = await api.getConversation(repoId, convId);
+      setChatMessages(detail.messages || []);
+      setChatError(null);
+    } catch (err: any) {
+      console.error('Failed to fetch conversation:', err);
+      setChatError('Failed to load conversation history.');
+    }
+  };
+
+  const handleCreateNewConversation = async () => {
+    if (!details?.id) return;
+    try {
+      const newConv = await api.createConversation(details.id);
+      setConversations((prev) => [
+        {
+          id: newConv.id,
+          repository_id: newConv.repository_id,
+          title: newConv.title,
+          message_count: 0,
+          created_at: newConv.created_at,
+          updated_at: newConv.updated_at,
+        },
+        ...prev,
+      ]);
+      setActiveConversationId(newConv.id);
+      setChatMessages([]);
+      setChatError(null);
+      setChatStreamingText('');
+      setChatStreamingRetrieval(null);
+      setChatStreamingCitations([]);
+    } catch (err: any) {
+      console.error('Failed to create new conversation:', err);
+      setChatError('Failed to start new conversation.');
+    }
+  };
+
+  const handleDeleteConversation = async (convId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!details?.id) return;
+    try {
+      await api.deleteConversation(details.id, convId);
+      setConversations((prev) => prev.filter((c) => c.id !== convId));
+      if (activeConversationId === convId) {
+        setActiveConversationId(null);
+        setChatMessages([]);
+      }
+    } catch (err: any) {
+      console.error('Failed to delete conversation:', err);
+    }
+  };
+
+  const handleCitationClick = (filePath: string, _startLine?: number) => {
+    setActiveTab('explorer');
+    setSelectedFilePath(filePath);
+  };
+
+  const handleCopyMessage = (id: string, text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedMessageId(id);
+    setTimeout(() => setCopiedMessageId(null), 2000);
+  };
+
+  const handleStopChatStream = () => {
+    if (chatAbortController) {
+      chatAbortController.abort();
+      setChatAbortController(null);
+      setChatLoading(false);
+    }
+  };
+
+  const handleSendChatMessage = async (overrideQuery?: string) => {
+    const q = (overrideQuery || chatInput).trim();
+    if (!q || !details?.id || chatLoading) return;
+
+    setChatInput('');
+    setChatLoading(true);
+    setChatError(null);
+    setChatStreamingText('');
+    setChatStreamingRetrieval(null);
+    setChatStreamingCitations([]);
+
+    const userMessage: ChatMessageItem = {
+      id: `temp_user_${Date.now()}`,
+      conversation_id: activeConversationId || '',
+      role: 'user',
+      content: q,
+      citations: [],
+      retrieval_intents: [],
+      retrieval_sources: [],
+      confidence: 1.0,
+      insufficient_evidence: false,
+      created_at: new Date().toISOString(),
+    };
+
+    setChatMessages((prev) => [...prev, userMessage]);
+
+    const controller = new AbortController();
+    setChatAbortController(controller);
+
+    let accumulatedTokens = '';
+    const accumulatedCitations: Citation[] = [];
+
+    try {
+      await api.streamChat(
+        details.id,
+        {
+          query: q,
+          conversation_id: activeConversationId || undefined,
+          top_k: chatTopK,
+        },
+        {
+          onRetrievalStarted: (data) => {
+            if (data.conversation_id && !activeConversationId) {
+              setActiveConversationId(data.conversation_id);
+            }
+          },
+          onRetrievalCompleted: (data) => {
+            setChatStreamingRetrieval({
+              intents: data.intents || [],
+              strategies: data.strategies_used || [],
+              total: data.total_results || 0,
+              graphEvidenceCount: data.graph_evidence_count || 0,
+              latency: data.retrieval_latency_ms || 0,
+            });
+          },
+          onGenerationStarted: () => {},
+          onToken: (tok) => {
+            accumulatedTokens += tok;
+            setChatStreamingText((prev) => prev + tok);
+          },
+          onCitation: (cite) => {
+            accumulatedCitations.push(cite);
+            setChatStreamingCitations((prev) => [...prev, cite]);
+          },
+          onDone: (doneData) => {
+            const assistantMsg: ChatMessageItem = {
+              id: doneData.answer_id || `asst_${Date.now()}`,
+              conversation_id: doneData.conversation_id || activeConversationId || '',
+              role: 'assistant',
+              content: doneData.content || accumulatedTokens,
+              citations: doneData.citations || accumulatedCitations,
+              retrieval_intents: doneData.retrieval_intents || [],
+              retrieval_sources: doneData.retrieval_sources || [],
+              confidence: doneData.confidence ?? 0.8,
+              insufficient_evidence:
+                doneData.evidence_sufficiency === 'NO_EVIDENCE' ||
+                doneData.evidence_sufficiency === 'INSUFFICIENT',
+              generation_model: doneData.generation_model,
+              generation_latency_ms: doneData.generation_latency_ms,
+              retrieval_latency_ms: doneData.retrieval_latency_ms,
+              created_at: new Date().toISOString(),
+            };
+
+            setChatMessages((prev) => [...prev, assistantMsg]);
+            setChatStreamingText('');
+            setChatStreamingRetrieval(null);
+            setChatStreamingCitations([]);
+            setChatLoading(false);
+            setChatAbortController(null);
+
+            if (details?.id) {
+              loadConversations(details.id);
+            }
+          },
+          onError: (errData) => {
+            setChatError(errData.error || 'Chat generation failed.');
+            setChatLoading(false);
+            setChatAbortController(null);
+          },
+        },
+        controller.signal
+      );
+    } catch (err: any) {
+      if (err.name !== 'AbortError') {
+        setChatError(err.message || 'Stream connection error.');
+      }
+      setChatLoading(false);
+      setChatAbortController(null);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'chat' && details?.id) {
+      loadConversations(details.id);
+    }
+  }, [activeTab, details?.id]);
+
+  const renderFormattedContent = (content: string) => {
+    const citationRegex = /\[([a-zA-Z0-9_\-\./\\]+\.[a-zA-Z0-9]+):(\d+)(?:[-–](\d+))?\]/g;
+    const parts: React.ReactNode[] = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = citationRegex.exec(content)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(content.substring(lastIndex, match.index));
+      }
+      const filePath = match[1];
+      const startLine = parseInt(match[2], 10);
+      const endLine = match[3] ? parseInt(match[3], 10) : startLine;
+
+      parts.push(
+        <button
+          key={`${filePath}-${startLine}-${match.index}`}
+          onClick={() => handleCitationClick(filePath, startLine)}
+          className="inline-flex items-center space-x-1 mx-1 px-2 py-0.5 rounded-md bg-indigo-950/70 hover:bg-indigo-900 border border-indigo-500/30 text-indigo-300 text-xs font-mono font-medium transition-colors"
+          title={`View in Code Explorer (${filePath}:${startLine}-${endLine})`}
+        >
+          <FileCode className="h-3 w-3 text-indigo-400" />
+          <span>
+            {filePath.split('/').pop()}:{startLine}
+            {endLine !== startLine ? `-${endLine}` : ''}
+          </span>
+        </button>
+      );
+      lastIndex = match.index + match[0].length;
+    }
+    if (lastIndex < content.length) {
+      parts.push(content.substring(lastIndex));
+    }
+    return parts;
   };
 
   // Recursive Tree Component
@@ -2184,30 +2454,352 @@ export const DashboardPreview: React.FC<DashboardPreviewProps> = ({
           </div>
         )}
 
-        {/* CHAT TAB PREVIEW */}
+        {/* CHAT TAB - PHASE 7 GROUNDED REPOSITORY INTELLIGENCE */}
         {activeTab === 'chat' && (
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-8 text-center">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-              <Sparkles className="h-7 w-7" />
-            </div>
-            <h3 className="mt-4 text-xl font-bold text-white">Grounded RAG Chat Engine</h3>
-            <p className="mx-auto mt-2 max-w-lg text-sm text-slate-400">
-              Repository ingestion, Tree-sitter AST parsing, ChromaDB vector representations, and NetworkX Knowledge Graph construction are complete. You can now execute semantic code search and inspect graph relationships above. The upcoming phases will fuse both pipelines and connect Gemini for interactive grounded chat with file/line citations.
-            </p>
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
+            {/* Sidebar: Conversation Sessions */}
+            <div className="lg:col-span-1 rounded-2xl border border-slate-800 bg-slate-900/60 p-4 backdrop-blur-md flex flex-col h-[700px]">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  Chat Sessions
+                </span>
+                <button
+                  type="button"
+                  onClick={handleCreateNewConversation}
+                  className="flex items-center space-x-1 rounded-lg bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-indigo-500 transition-colors"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>New</span>
+                </button>
+              </div>
 
-            <div className="mt-8 mx-auto max-w-xl text-left rounded-xl border border-slate-800 bg-slate-950/60 p-4">
-              <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
-                Phase Progress:
-              </span>
-              <ul className="mt-2 space-y-1.5 text-xs text-slate-400">
-                <li className="text-emerald-400">✓ Phase 1: Foundation Architecture</li>
-                <li className="text-emerald-400">✓ Phase 2: Ingestion & File Filtering</li>
-                <li className="text-emerald-400">✓ Phase 3: Tree-sitter Code Understanding</li>
-                <li className="text-emerald-400">✓ Phase 4: Structure-Aware Vector RAG & ChromaDB Persistent Storage</li>
-                <li className="text-emerald-400">✓ Phase 5: Knowledge Graph Construction & Persistence (NetworkX)</li>
-                <li className="text-slate-500">⏳ Phase 6: GraphRAG & Traversal Retrieval (Call graphs, Dependencies, Scopes)</li>
-                <li className="text-slate-500">⏳ Phase 7: Unified Hybrid Vector + Graph Retrieval & Gemini Chat</li>
-              </ul>
+              {/* Conversation list */}
+              <div className="mt-3 flex-1 overflow-y-auto space-y-1.5 pr-1">
+                {conversations.length === 0 ? (
+                  <div className="py-8 text-center text-xs text-slate-500">
+                    No conversations yet. Start a new session!
+                  </div>
+                ) : (
+                  conversations.map((c) => {
+                    const isSelected = c.id === activeConversationId;
+                    return (
+                      <div
+                        key={c.id}
+                        onClick={() => handleSelectConversation(c.id)}
+                        className={`group flex items-center justify-between rounded-xl px-3 py-2.5 text-xs transition-colors cursor-pointer border ${
+                          isSelected
+                            ? 'bg-indigo-500/10 border-indigo-500/30 text-white'
+                            : 'border-transparent text-slate-400 hover:bg-slate-800/40 hover:text-slate-200'
+                        }`}
+                      >
+                        <div className="flex items-center space-x-2 truncate pr-2">
+                          <MessageSquare className={`h-3.5 w-3.5 shrink-0 ${isSelected ? 'text-indigo-400' : 'text-slate-500'}`} />
+                          <span className="truncate font-medium">{c.title || 'Untitled Session'}</span>
+                        </div>
+                        <div className="flex items-center space-x-1 shrink-0">
+                          <span className="text-[10px] text-slate-500 font-mono">
+                            {c.message_count}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => handleDeleteConversation(c.id, e)}
+                            className="opacity-0 group-hover:opacity-100 p-1 hover:text-rose-400 transition-opacity"
+                            title="Delete session"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Sidebar Footer info */}
+              <div className="mt-auto pt-3 border-t border-slate-800/80 text-[11px] text-slate-500 flex items-center justify-between">
+                <span className="flex items-center space-x-1.5">
+                  <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="font-mono text-slate-400">gemini-2.5-flash</span>
+                </span>
+                <span className="text-[10px] bg-slate-800/80 px-1.5 py-0.5 rounded text-slate-400 font-mono">
+                  Zero-Cost Free Tier
+                </span>
+              </div>
+            </div>
+
+            {/* Main Chat Workspace */}
+            <div className="lg:col-span-3 rounded-2xl border border-slate-800 bg-slate-900/60 backdrop-blur-md flex flex-col h-[700px] overflow-hidden">
+              {/* Chat Header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-950/40">
+                <div className="flex items-center space-x-3">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                    <Sparkles className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white flex items-center space-x-2">
+                      <span>RepoMind Assistant</span>
+                      <span className="rounded-full bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 text-[10px] font-mono text-indigo-300">
+                        Hybrid Grounded
+                      </span>
+                    </h3>
+                    <p className="text-[11px] text-slate-400">
+                      Grounded exclusively in AST symbols, ChromaDB vectors, and NetworkX relations
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-3 text-xs">
+                  <div className="flex items-center space-x-1 text-slate-400">
+                    <span className="text-[11px] font-mono">Top-K:</span>
+                    <select
+                      value={chatTopK}
+                      onChange={(e) => setChatTopK(Number(e.target.value))}
+                      className="rounded bg-slate-900 border border-slate-800 px-1.5 py-0.5 text-[11px] text-slate-300"
+                    >
+                      <option value="3">3</option>
+                      <option value="5">5</option>
+                      <option value="8">8</option>
+                      <option value="10">10</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Messages Body */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                {chatMessages.length === 0 && !chatLoading && (
+                  <div className="my-auto py-12 text-center max-w-lg mx-auto">
+                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 mb-3">
+                      <Bot className="h-6 w-6" />
+                    </div>
+                    <h4 className="text-base font-bold text-white">Ask anything about {validation.repo}</h4>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Answers include verified clickable line citations. No ungrounded code is ever hallucinated.
+                    </p>
+
+                    {/* Quick Suggested Prompts */}
+                    <div className="mt-6 grid grid-cols-1 gap-2 text-left sm:grid-cols-2">
+                      {[
+                        'Explain repository architecture and key layers',
+                        'Where is authentication and password handling implemented?',
+                        'What are the core database models and tables?',
+                        'Trace the main application execution entry points',
+                      ].map((prompt, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => handleSendChatMessage(prompt)}
+                          className="rounded-xl border border-slate-800 bg-slate-950/40 p-3 text-xs text-slate-300 hover:border-indigo-500/30 hover:bg-slate-800/40 transition-colors"
+                        >
+                          <span className="font-semibold text-indigo-400">Prompt: </span>
+                          <span>"{prompt}"</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Message Thread */}
+                {chatMessages.map((msg) => (
+                  <div
+                    key={msg.id}
+                    className={`flex items-start space-x-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    {msg.role === 'assistant' && (
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                        <Sparkles className="h-3.5 w-3.5" />
+                      </div>
+                    )}
+
+                    <div
+                      className={`max-w-2xl rounded-2xl p-4 text-xs ${
+                        msg.role === 'user'
+                          ? 'bg-indigo-600 text-white rounded-tr-none'
+                          : 'bg-slate-950/70 border border-slate-800 text-slate-200 rounded-tl-none space-y-3'
+                      }`}
+                    >
+                      {/* Message Content */}
+                      <div className="leading-relaxed whitespace-pre-wrap">
+                        {msg.role === 'user' ? msg.content : renderFormattedContent(msg.content)}
+                      </div>
+
+                      {/* Assistant Evidence & Citations Footer */}
+                      {msg.role === 'assistant' && (
+                        <div className="pt-2 border-t border-slate-800/80 space-y-2">
+                          {/* Validated Citations pills */}
+                          {msg.citations && msg.citations.length > 0 && (
+                            <div>
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                                Verified Source Citations:
+                              </span>
+                              <div className="flex flex-wrap gap-1.5">
+                                {msg.citations.map((cite, cIdx) => (
+                                  <button
+                                    key={cIdx}
+                                    type="button"
+                                    onClick={() => handleCitationClick(cite.file_path, cite.start_line)}
+                                    className="flex items-center space-x-1 rounded bg-indigo-950/40 border border-indigo-500/30 px-2 py-0.5 text-[10px] font-mono text-indigo-300 hover:bg-indigo-900/60 transition-colors"
+                                  >
+                                    <FileCode className="h-2.5 w-2.5 text-indigo-400" />
+                                    <span>
+                                      {cite.file_path}:{cite.start_line}-{cite.end_line}
+                                    </span>
+                                    {cite.symbol_name && (
+                                      <span className="text-slate-400 font-sans font-semibold">({cite.symbol_name})</span>
+                                    )}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Grounding & Latency Bar */}
+                          <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono">
+                            <div className="flex items-center space-x-2">
+                              {msg.insufficient_evidence ? (
+                                <span className="flex items-center space-x-1 text-amber-400 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded">
+                                  <AlertTriangle className="h-2.5 w-2.5" />
+                                  <span>Insufficient Codebase Evidence</span>
+                                </span>
+                              ) : (
+                                <span className="flex items-center space-x-1 text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded">
+                                  <ShieldCheck className="h-2.5 w-2.5" />
+                                  <span>{Math.round((msg.confidence || 0.9) * 100)}% Grounded</span>
+                                </span>
+                              )}
+                              {msg.generation_latency_ms !== undefined && (
+                                <span>gen: {msg.generation_latency_ms}ms</span>
+                              )}
+                              {msg.retrieval_latency_ms !== undefined && (
+                                <span>retrieval: {msg.retrieval_latency_ms}ms</span>
+                              )}
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleCopyMessage(msg.id, msg.content)}
+                              className="flex items-center space-x-1 text-slate-400 hover:text-white transition-colors"
+                            >
+                              {copiedMessageId === msg.id ? (
+                                <>
+                                  <Check className="h-3 w-3 text-emerald-400" />
+                                  <span className="text-emerald-400">Copied</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="h-3 w-3" />
+                                  <span>Copy</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {msg.role === 'user' && (
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-800 text-slate-300">
+                        <User className="h-3.5 w-3.5" />
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {/* Live Streaming State */}
+                {chatLoading && (
+                  <div className="flex items-start space-x-3 justify-start">
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 animate-pulse">
+                      <Sparkles className="h-3.5 w-3.5" />
+                    </div>
+                    <div className="max-w-2xl rounded-2xl rounded-tl-none p-4 text-xs bg-slate-950/70 border border-slate-800 text-slate-200 space-y-3">
+                      {/* Retrieval Banner during streaming */}
+                      {chatStreamingRetrieval && (
+                        <div className="flex items-center space-x-2 text-[10px] font-mono text-indigo-300 bg-indigo-950/40 border border-indigo-500/20 px-2 py-1 rounded">
+                          <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+                          <span>
+                            Retrieved {chatStreamingRetrieval.total} chunks ({chatStreamingRetrieval.strategies.join(', ')}) in {chatStreamingRetrieval.latency}ms
+                          </span>
+                        </div>
+                      )}
+
+                      {!chatStreamingText && !chatStreamingRetrieval && (
+                        <div className="flex items-center space-x-2 text-slate-400 text-xs">
+                          <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-400" />
+                          <span>Executing hybrid search (Vector + Graph + Keyword)...</span>
+                        </div>
+                      )}
+
+                      {chatStreamingText && (
+                        <div className="leading-relaxed whitespace-pre-wrap">
+                          {renderFormattedContent(chatStreamingText)}
+                          <span className="inline-block w-1.5 h-3.5 bg-indigo-400 animate-pulse ml-0.5 align-middle" />
+                        </div>
+                      )}
+
+                      {chatStreamingCitations.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 pt-1">
+                          {chatStreamingCitations.map((cite, cIdx) => (
+                            <span
+                              key={cIdx}
+                              className="rounded bg-indigo-950/60 border border-indigo-500/30 px-2 py-0.5 text-[10px] font-mono text-indigo-300"
+                            >
+                              {cite.file_path}:{cite.start_line}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {chatError && (
+                  <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-300 flex items-center space-x-2">
+                    <AlertTriangle className="h-4 w-4 shrink-0 text-rose-400" />
+                    <span className="flex-1">{chatError}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Chat Input Bar */}
+              <div className="p-4 border-t border-slate-800 bg-slate-950/50">
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleSendChatMessage();
+                  }}
+                  className="flex items-center space-x-2"
+                >
+                  <input
+                    type="text"
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    placeholder={chatLoading ? 'Generating grounded response...' : 'Ask a technical question about the codebase...'}
+                    disabled={chatLoading}
+                    className="flex-1 rounded-xl border border-slate-800 bg-slate-900/80 px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50"
+                  />
+
+                  {chatLoading ? (
+                    <button
+                      type="button"
+                      onClick={handleStopChatStream}
+                      className="flex items-center space-x-1.5 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3.5 py-2.5 text-xs font-semibold text-rose-300 hover:bg-rose-500/20 transition-colors"
+                      title="Stop generating"
+                    >
+                      <StopCircle className="h-4 w-4" />
+                      <span>Stop</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="submit"
+                      disabled={!chatInput.trim()}
+                      className="flex items-center space-x-1.5 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-semibold text-white shadow-lg shadow-indigo-600/20 hover:bg-indigo-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <span>Send</span>
+                      <Send className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </form>
+              </div>
             </div>
           </div>
         )}

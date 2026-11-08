@@ -126,3 +126,4 @@ class ResultFusion:
 
 # Global singleton instance
 result_fusion = ResultFusion()
+

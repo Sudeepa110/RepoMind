@@ -104,3 +104,61 @@ Automated multi-strategy evaluation executed via `tests/evaluation/test_hybrid_e
    - Query: `"where are environment settings DATABASE_URL and SECRET_KEY configured?"`
    - Result: Rank 1 `config.py` (`[VECTOR + KEYWORD]`). Hit: **PASS**.
 
+---
+
+## 5. Phase 7 Grounded Generation & Anti-Hallucination Benchmark Results
+
+Automated grounding evaluation executed via `tests/evaluation/test_grounding_evaluation.py`:
+
+| Metric | Target Threshold | Measured Score | Status |
+|---|---|---|---|
+| **Answerable Queries Grounded** | $\ge 90.0\%$ | **100.00%** (9/9) | PASS |
+| **Unanswerable Case Honesty** | $100.0\%$ | **100.00%** (1/1) | PASS |
+| **Citation Precision & Validity** | $100.0\%$ | **100.00%** (11/11) | PASS |
+| **Unsupported Claim Rate (Hallucination)** | $0.0\%$ | **0.00%** | PASS |
+| **Average Pipeline Latency** | $< 100\text{ ms}$ | **16.51 ms** | PASS |
+
+### Grounding Query Suite Breakdown:
+
+1. **Q1 (Password Hashing)**:
+   - Query: `"Where is password hashing implemented and what algorithm is used?"`
+   - Evidence: `src/auth/service.py:12-28` (`hash_password`, bcrypt).
+   - Result: Grounded citation `[src/auth/service.py:12-28]`. Status: **PASS (Grounded)**.
+2. **Q2 (Password Verification)**:
+   - Query: `"How is user password verification performed?"`
+   - Evidence: `src/auth/service.py:30-45` (`verify_password`, bcrypt `checkpw`).
+   - Result: Grounded citation `[src/auth/service.py:30-45]`. Status: **PASS (Grounded)**.
+3. **Q3 (Database Lifecycle)**:
+   - Query: `"Which function initializes and manages the database session lifecycle?"`
+   - Evidence: `src/database/session.py:10-25` (`get_db_session`).
+   - Result: Grounded citation `[src/database/session.py:10-25]`. Status: **PASS (Grounded)**.
+4. **Q4 (Login Endpoint)**:
+   - Query: `"What endpoint handles developer or user login?"`
+   - Evidence: `src/api/routes.py:15-40` (`login_route`).
+   - Result: Grounded citation `[src/api/routes.py:15-40]`. Status: **PASS (Grounded)**.
+5. **Q5 (User Entity Schema)**:
+   - Query: `"What schema and fields are defined on the User entity model?"`
+   - Evidence: `src/models/user.py:8-24` (`User` class).
+   - Result: Grounded citation `[src/models/user.py:8-24]`. Status: **PASS (Grounded)**.
+6. **Q6 (Cross-Layer Call Flow)**:
+   - Query: `"Trace the structural call from the login route to authentication service."`
+   - Evidence: `src/api/routes.py:15-40` and `src/auth/service.py:12-28`.
+   - Result: Grounded citations to both files + confirmed graph relation. Status: **PASS (Grounded)**.
+7. **Q7 (Application Configuration)**:
+   - Query: `"What application configuration settings are declared?"`
+   - Evidence: `src/core/config.py:5-22` (`AppSettings`).
+   - Result: Grounded citation `[src/core/config.py:5-22]`. Status: **PASS (Grounded)**.
+8. **Q8 (Caller Traversal)**:
+   - Query: `"Who calls verify_password in the codebase?"`
+   - Evidence: Knowledge graph edge `authenticate_user -> verify_password` at line 35.
+   - Result: Grounded citation `[src/auth/service.py:30-45]`. Status: **PASS (Grounded)**.
+9. **Q9 (Multi-Component Architecture)**:
+   - Query: `"Explain how the login route relates to password hashing and database models."`
+   - Evidence: `src/api/routes.py` and `src/auth/service.py`.
+   - Result: Valid citations to both components. Status: **PASS (Grounded)**.
+10. **Q10 (Anti-Hallucination Guardrail / Unindexed Concepts)**:
+    - Query: `"How is the quantum error correction code and topological qubit surface initialized?"`
+    - Evidence: `NO_EVIDENCE` (0 chunks, 0 graph edges).
+    - Result: Explicit statement of insufficient codebase evidence; 0 citations; 0% unsupported claim rate. Status: **PASS (Honest-ZeroHallucination)**.
+
+

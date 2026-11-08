@@ -9,6 +9,7 @@ from sqlalchemy import (
     Text,
     ForeignKey,
     JSON,
+    Float,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -45,6 +46,7 @@ class RepositoryModel(Base):
 
     jobs: Mapped[List["IndexingJobModel"]] = relationship("IndexingJobModel", back_populates="repository", cascade="all, delete-orphan")
     files: Mapped[List["FileMetadataModel"]] = relationship("FileMetadataModel", back_populates="repository", cascade="all, delete-orphan")
+    conversations: Mapped[List["ConversationModel"]] = relationship("ConversationModel", back_populates="repository", cascade="all, delete-orphan")
 
 class IndexingJobModel(Base):
     __tablename__ = "indexing_jobs"
@@ -83,4 +85,44 @@ class AnonymousSessionModel(Base):
     request_count: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=get_utc_now)
     last_active_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=get_utc_now)
+
+
+class ConversationModel(Base):
+    __tablename__ = "conversations"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
+    repository_id: Mapped[str] = mapped_column(String(36), ForeignKey("repositories.id", ondelete="CASCADE"), index=True)
+    title: Mapped[str] = mapped_column(String(255), default="New Conversation")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=get_utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=get_utc_now, onupdate=get_utc_now)
+
+    repository: Mapped["RepositoryModel"] = relationship("RepositoryModel", back_populates="conversations")
+    messages: Mapped[List["ChatMessageModel"]] = relationship(
+        "ChatMessageModel",
+        back_populates="conversation",
+        cascade="all, delete-orphan",
+        order_by="ChatMessageModel.created_at",
+    )
+
+
+class ChatMessageModel(Base):
+    __tablename__ = "chat_messages"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
+    conversation_id: Mapped[str] = mapped_column(String(36), ForeignKey("conversations.id", ondelete="CASCADE"), index=True)
+    repository_id: Mapped[str] = mapped_column(String(36), ForeignKey("repositories.id", ondelete="CASCADE"), index=True)
+    role: Mapped[str] = mapped_column(String(20))  # "user" or "assistant"
+    content: Mapped[str] = mapped_column(Text)
+    citations: Mapped[List[Dict[str, Any]]] = mapped_column(JSON, default=list)
+    retrieval_intents: Mapped[List[str]] = mapped_column(JSON, default=list)
+    retrieval_sources: Mapped[List[str]] = mapped_column(JSON, default=list)
+    confidence: Mapped[float] = mapped_column(Float, default=1.0)
+    insufficient_evidence: Mapped[bool] = mapped_column(Boolean, default=False)
+    generation_model: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    generation_latency_ms: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    retrieval_latency_ms: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=get_utc_now)
+
+    conversation: Mapped["ConversationModel"] = relationship("ConversationModel", back_populates="messages")
+
 

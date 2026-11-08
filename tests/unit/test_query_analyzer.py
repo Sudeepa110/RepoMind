@@ -113,3 +113,4 @@ def test_query_router_user_overrides():
     plan_override = query_router.route(analysis, top_k=5, include_graph=False)
     assert plan_override.graph_enabled is False
     assert "USER_OVERRIDE_GRAPH" in plan_override.reasons
+

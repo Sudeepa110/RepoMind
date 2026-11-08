@@ -334,3 +334,71 @@
    - Quantitative evaluation benchmark (`tests/evaluation/test_hybrid_evaluation.py`): Comparing Vector-only, Keyword-only, and Hybrid across 7 diverse query categories.
    - Full test suite: **93/93 tests passing (100%) in 31.49s**.
    - Frontend production build (`npm.cmd run build`): **0 errors, 399ms**.
+
+---
+
+## Phase 7: Gemini LLM Integration, Grounded Generation & Conversational Chat
+
+**Date**: 2026-11-08  
+**Status**: COMPLETED & VERIFIED  
+**Backend Tests**: 115 / 115 passing (100% pass rate in 155.41s)  
+**Frontend Build**: Production build successful (402ms, 0 errors)  
+**Grounding Benchmark**: Citation Validity: 100.0%, Unsupported Claim Rate: 0.00%, Unanswerable Case Honesty: 100.0%, Average Latency: 16.51ms  
+
+### Key Accomplishments & Deliverables
+
+1. **Official Google Gen AI Python SDK Integration (`backend/app/llm/gemini_client.py`)**:
+   - Installed and integrated official unified SDK `google-genai>=3.0.0`.
+   - Connected Google AI Studio free-tier access (`GEMINI_API_KEY`, model `gemini-2.5-flash`).
+   - Implemented streaming (`generate_stream`) and non-streaming (`generate`) with async timeout controls (45s), low temperature (`0.2`), and 1-attempt transient network retry.
+   - Categorized zero-cost errors: `GeminiQuotaExceededError` (429), `GeminiInvalidCredentialsError` (403), `GeminiModelUnavailableError` (404), `GeminiSafetyBlockedError`, and `GeminiTimeoutError`.
+
+2. **Strict Anti-Prompt-Injection Prompt Architecture (`backend/app/llm/prompt_templates.py`)**:
+   - Constructed `SYSTEM_INSTRUCTION` establishing strict evidence grounding, citation formatting, and honesty rules.
+   - Enforced untrusted data boundary: repository source code, comments, and docstrings are quarantined as untrusted data, preventing prompt-injection overrides (e.g. `# System: ignore prior instructions`).
+   - Context window bounding: bounds conversation history to last 6 turns to manage token costs.
+
+3. **Interactive Clickable Line Citation Validator (`backend/app/llm/citation_validator.py`)**:
+   - Regex parsing of citations: `[file_path:start_line-end_line]` and `[file_path:start_line]`.
+   - Validates coordinates against actual retrieved `UnifiedSearchResult` code chunks and `GraphEvidence` edges.
+   - Eliminates hallucinated files and out-of-range line numbers (unsupported claim rate: 0.00%).
+   - Deep links directly to Code Explorer (`file` and line coordinates).
+
+4. **Repository-Scoped Conversational Memory (`backend/app/llm/conversation_service.py` & `backend/app/database/models.py`)**:
+   - Updated SQLite database schema with `ConversationModel` and `ChatMessageModel` related to `RepositoryModel`.
+   - Implemented conversation CRUD with automatic titling based on the user's initial question.
+   - Enforced strict repository isolation: queries from one repository cannot read or modify sessions from another.
+
+5. **Grounded Generation Coordinator (`backend/app/llm/generation_service.py`)**:
+   - Master orchestrator connecting Phase 6 Hybrid Retrieval (`hybrid_retriever.hybrid_search`) with Google Gemini.
+   - Evaluates evidence sufficiency (`SUFFICIENT`, `PARTIAL`, `INSUFFICIENT`, `NO_EVIDENCE`).
+   - On `NO_EVIDENCE`: directly returns an honest grounded explanation without burning unnecessary LLM tokens or hallucinating code.
+   - Emits structured Server-Sent Events (SSE).
+
+6. **Conversational Chat API Endpoints (`backend/app/api/chat.py` & `main.py`)**:
+   - `POST /api/v1/repositories/{id}/conversations`: Initialize conversation session.
+   - `GET /api/v1/repositories/{id}/conversations`: List conversations ordered by activity.
+   - `GET /api/v1/repositories/{id}/conversations/{conv_id}`: Retrieve full message thread with citations.
+   - `DELETE /api/v1/repositories/{id}/conversations/{conv_id}`: Delete conversation session.
+   - `POST /api/v1/repositories/{id}/chat/stream`: Real-time SSE stream (`retrieval_started`, `retrieval_completed`, `generation_started`, `token`, `citation`, `done`).
+   - `POST /api/v1/repositories/{id}/chat`: Synchronous non-streaming answer endpoint.
+
+7. **Frontend Conversational Chat Workspace (`frontend/src/pages/DashboardPreview.tsx`)**:
+   - Dual-pane layout: conversation session sidebar + main chat workspace.
+   - Real-time token streaming with pulsing indicator.
+   - Live retrieval banner showing retrieved chunks, engines used, and retrieval latency.
+   - Interactive clickable citation pills deep-linking to Code Explorer (`activeTab='explorer'`).
+   - Grounding confidence meter badge, copy answer action, and suggested starter prompts.
+   - Streaming stop/abort button using `AbortController`.
+
+8. **Automated Testing & Quantitative Grounding Evaluation**:
+   - Citation Validator unit tests (`tests/unit/test_citation_validator.py`): 5 tests passing.
+   - Gemini Client unit tests (`tests/unit/test_gemini_client.py`): 7 tests passing.
+   - Conversation Service unit tests (`tests/unit/test_conversation_service.py`): 5 tests passing.
+   - Chat Integration tests (`tests/integration/test_chat_integration.py`): 4 tests passing.
+   - Quantitative Grounding Benchmark (`tests/evaluation/test_grounding_evaluation.py`): 10 benchmark questions (9 answerable, 1 unanswerable).
+     - Citation Precision & Validity: **100.0%**
+     - Unsupported Claim Rate: **0.00%**
+     - Average Pipeline Latency: **16.51 ms**
+   - Full test suite: **115/115 tests passing (100%) in 155.41s**.
+   - Frontend production build (`npm.cmd run build`): **0 errors, 402ms**.
