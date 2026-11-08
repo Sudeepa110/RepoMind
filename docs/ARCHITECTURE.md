@@ -108,21 +108,44 @@ Responsible for retrieving semantically relevant code snippets, comments, docstr
 
 ---
 
-## 3. Pipeline B: GraphRAG
+## 3. Pipeline B: Knowledge Graph & GraphRAG
 
-Responsible for modeling and traversing structural relationships and dependencies:
-- **Graph Engine**: NetworkX with JSON/GraphML persistence in `storage/graphs/{repo_id}.json`.
-- **Abstract Interface**: `BaseGraphStore` abstraction isolating graph storage, ensuring seamless future migration to Neo4j without modifying business logic.
-- **Graph Nodes**:
-  - `Repository`, `Directory`, `File`, `Module`, `Class`, `Interface`, `Function`, `Method`, `ApiEndpoint`, `DatabaseModel`.
-- **Graph Relationships**:
-  - `CONTAINS` (directory -> file, class -> method)
-  - `IMPORTS` (file -> module)
-  - `CALLS` (function -> function/method)
-  - `INHERITS` (class -> base class)
-  - `IMPLEMENTS` (class -> interface)
-  - `DEFINES` (file -> symbol)
-  - `DEPENDS_ON` (component -> component)
+Responsible for modeling and traversing structural relationships, call hierarchies, inheritance, and dependencies:
+- **Graph Engine (`NetworkXGraphStore`)**:
+  - Implements `BaseGraphStore` abstraction isolating graph storage, ensuring seamless future migration to Neo4j without modifying business logic.
+  - In-memory `networkx.DiGraph` instances strictly isolated per repository.
+  - **Structured JSON Persistence**: Uses safe node-link format (`networkx.node_link_data` / `node_link_graph` with `edges="edges"`), completely avoiding unsafe pickle serialization.
+  - **Atomic Persistence**: Writes serialized graphs to `storage/graphs/{sanitized_repo_id}.json.tmp` and renames atomically via `os.replace` to prevent corrupted files on unexpected interruptions.
+  - **Safe Corrupted File Recovery**: Automatically logs warnings and returns graceful defaults on corrupted files rather than crashing the API process.
+  - **Thread Safety**: Protected by reentrant locks (`threading.RLock`) for concurrent requests.
+- **Graph Construction (`GraphBuilder`)**:
+  - Consumes the shared Tree-sitter `ParsedRepository` intermediate representation and `to_graph_elements()` adapter.
+  - **Directory Containment**: Generates hierarchical `Directory` nodes and `CONTAINS` edges from repository root to nested directories and files.
+  - **Node & Edge Validation**: Enforces repository ID alignment, valid identifiers, and removes invalid self-loops.
+  - **Call Deduplication**: Merges repeated calls between the same two symbols into a single edge preserving cumulative `call_count`, invocation `lines`, and confidence scores.
+  - **Resolution Classification**: Distinguishes `CONFIRMED` local links from `INFERRED` repository matches and `UNRESOLVED` external symbols.
+- **Graph Traversal Service (`GraphTraversalService`)**:
+  - `find_callers`: Retrieves functions/methods calling a given symbol with invocation line numbers, call frequency, and confidence.
+  - `find_callees`: Retrieves functions/methods called by a given symbol.
+  - `find_inheritance_hierarchy`: Traces parent classes, subclasses, implemented interfaces, and class implementors.
+  - `find_dependencies`: Traces outgoing module imports and incoming dependent files.
+  - `find_execution_paths`: Bounded simple path exploration between two symbols along `CALLS` edges with max depth limits (disclaiming that static call graphs represent potential invocation paths).
+  - `analyze_impact`: Traverses incoming callers and dependents to calculate modification blast radius and list affected files.
+- **Graph Query APIs**:
+  - `GET /api/v1/repositories/{id}/graph/status`: Summary metrics (nodes, edges, density, confirmation breakdown).
+  - `GET /api/v1/repositories/{id}/graph/nodes`: Filtered, paginated node list (by type, file path, name query).
+  - `GET /api/v1/repositories/{id}/graph/edges`: Filtered, paginated edge list (by relationship, endpoints).
+  - `GET /api/v1/repositories/{id}/graph/callers`: Callers of a symbol.
+  - `GET /api/v1/repositories/{id}/graph/callees`: Callees of a symbol.
+  - `GET /api/v1/repositories/{id}/graph/inheritance`: Inheritance hierarchy.
+  - `GET /api/v1/repositories/{id}/graph/dependencies`: Module dependencies.
+  - `GET /api/v1/repositories/{id}/graph/paths`: Bounded execution paths between symbols.
+  - `GET /api/v1/repositories/{id}/graph/impact`: Modification blast radius and impacted files.
+  - `GET /api/v1/repositories/{id}/graph/subgraph`: Localized ego subgraph centered on a node.
+- **Frontend Knowledge Graph Dashboard**:
+  - Dedicated tab with interactive SVG canvas, radial layout, color-coded node badges, and directed relationship labels.
+  - Entity Inspector side panel with source lines and one-click **"Open in Code Explorer"** deep link.
+  - Interactive Call Hierarchy explorer and Blast Radius impact view.
 
 ---
 

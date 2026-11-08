@@ -123,4 +123,130 @@ export interface VectorIndexStatus {
   persist_directory: string;
 }
 
+export interface GraphStatus {
+  repository_id: string;
+  total_nodes: number;
+  total_edges: number;
+  graph_density: number;
+  is_persisted: boolean;
+  node_types: Record<string, number>;
+  relationship_types: Record<string, number>;
+  confirmed_edges: number;
+  inferred_edges: number;
+}
+
+export interface GraphNodeItem {
+  id: string;
+  repository_id: string;
+  type: string;
+  name: string;
+  qualified_name?: string;
+  file_path?: string;
+  start_line?: number;
+  end_line?: number;
+  language?: string;
+  commit_hash?: string;
+  symbol_id?: string;
+  content_hash?: string;
+  properties?: Record<string, any>;
+}
+
+export interface GraphEdgeItem {
+  source_id: string;
+  target_id: string;
+  relationship: string;
+  repository_id: string;
+  is_confirmed: boolean;
+  confidence: number;
+  resolution_status: string;
+  properties?: Record<string, any>;
+}
+
+export interface CallerItem {
+  caller_id: string;
+  caller_name: string;
+  caller_type: string;
+  file_path: string;
+  start_line?: number;
+  invocation_lines: number[];
+  call_count: number;
+  confidence: number;
+  is_confirmed: boolean;
+  resolution_status: string;
+}
+
+export interface CallersResponse {
+  repository_id: string;
+  target_id?: string;
+  target_symbol: string;
+  target_type?: string;
+  file_path?: string;
+  line?: number;
+  found: boolean;
+  total_callers: number;
+  callers: CallerItem[];
+  error?: string;
+}
+
+export interface CalleeItem {
+  callee_id: string;
+  callee_name: string;
+  callee_type: string;
+  file_path: string;
+  start_line?: number;
+  invocation_lines: number[];
+  call_count: number;
+  confidence: number;
+  is_confirmed: boolean;
+  resolution_status: string;
+}
+
+export interface CalleesResponse {
+  repository_id: string;
+  source_id?: string;
+  source_symbol: string;
+  source_type?: string;
+  file_path?: string;
+  line?: number;
+  found: boolean;
+  total_callees: number;
+  callees: CalleeItem[];
+  error?: string;
+}
+
+export interface ImpactItem {
+  node_id: string;
+  name: string;
+  type: string;
+  file_path?: string;
+  line?: number;
+  confidence: number;
+}
+
+export interface ImpactAnalysisResponse {
+  repository_id: string;
+  target_node_id: string;
+  target_name?: string;
+  target_type?: string;
+  depth: number;
+  found: boolean;
+  total_impacted_symbols: number;
+  total_affected_files: number;
+  affected_files: string[];
+  direct_callers: ImpactItem[];
+  direct_dependents: ImpactItem[];
+  inheriting_classes: ImpactItem[];
+  all_impacted_node_ids: string[];
+  error?: string;
+}
+
+export interface SubgraphResponse {
+  center_node_id: string;
+  radius: number;
+  node_count: number;
+  edge_count: number;
+  nodes: GraphNodeItem[];
+  edges: GraphEdgeItem[];
+}
+
 export type AppView = 'landing' | 'dashboard';

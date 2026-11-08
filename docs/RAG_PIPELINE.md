@@ -69,21 +69,37 @@ Extracted Code Elements
 
 ---
 
-## 3. GraphRAG Pipeline
+## 3. Pipeline B: Knowledge Graph & NetworkX Persistence
 
 - **Target**: Structural connectivity, invocation chains, inheritance trees, module boundaries, and change impact.
-- **Graph Engine**: NetworkX via `BaseGraphStore` interface.
-- **Storage**: Serialized JSON knowledge graphs in `storage/graphs/{repo_id}.json`.
-- **Relationship Extraction**:
-  - `CONTAINS`: Structural containment (File defines Class, Class contains Method).
-  - `IMPORTS`: Cross-file dependency tracking.
-  - `CALLS`: Static invocation extraction (caller -> callee).
-  - `INHERITS`: Subclassing hierarchy.
+- **Graph Engine**: NetworkX via abstract `BaseGraphStore` interface (ready for future Neo4j migration).
+- **Storage**: Serialized structured node-link JSON in `storage/graphs/{repo_id}.json` with atomic rename (`.tmp` -> `.json`).
+- **Graph Schema**:
+  - `Repository`: Root repository entity (`repo:{repo_id}`).
+  - `Directory`: Hierarchical containment (`dir:{repo_id}:{relative_path}`).
+  - `File`: Source code and documentation files (`file:{repo_id}:{path}`).
+  - `Module`: Imported external or internal modules (`module:{repo_id}:{module_name}`).
+  - `Class`, `Interface`, `Struct`: Type declarations with member scopes.
+  - `Function`, `Method`: Executable units with line coordinates and signatures.
+- **Relationship Extraction & Resolution**:
+  - `CONTAINS`: Structural containment (Repository -> Directory -> File -> Class -> Method).
+  - `IMPORTS`: File-level and symbol-level module dependencies.
+  - `CALLS`: Invocations with call frequency (`call_count`), invocation line numbers (`lines`), and confidence scores.
+  - `INHERITS`: Class inheritance hierarchy.
   - `IMPLEMENTS`: Interface realization.
-- **Graph Traversal**:
-  - In-degree traversal: Finding callers of a specific method.
-  - Out-degree traversal: Tracing dependencies and callees.
-  - Subgraph extraction: Ego graph (radius $k=1,2$) around a target symbol.
+  - `DEFINES`: Scope definitions.
+  - `DEPENDS_ON`: Generic dependency relationships.
+- **Resolution Classification**:
+  - `CONFIRMED`: Statically verified local links within the file or repository.
+  - `INFERRED`: Best-effort matching against repository-wide unique symbol definitions.
+  - `UNRESOLVED`: External library functions or dynamic receivers.
+- **Graph Traversal Capabilities**:
+  - `find_callers`: In-degree traversal along incoming `CALLS` edges with invocation line citations.
+  - `find_callees`: Out-degree traversal along outgoing `CALLS` edges.
+  - `find_inheritance_hierarchy`: Tracing subclasses, superclasses, and interface implementations.
+  - `find_dependencies`: Tracing imported modules and dependent files.
+  - `find_execution_paths`: Bounded simple path exploration ($k \le 5$) between two known symbols.
+  - `analyze_impact`: Blast radius calculation identifying directly and indirectly affected callers, classes, and files.
 
 ---
 

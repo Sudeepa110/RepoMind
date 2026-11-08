@@ -16,6 +16,8 @@ from backend.app.ingestion.analyzer import analyze_repository
 from backend.app.processing.engine import code_engine
 from backend.app.vectorstore.chunker import chunker
 from backend.app.retrieval.semantic_search import semantic_search_service
+from backend.app.graph.builder import graph_builder
+from backend.app.graph.networkx_store import networkx_graph_store
 
 logger = logging.getLogger("repomind.indexing")
 
@@ -208,9 +210,9 @@ async def process_repository_job(
             clone_result.commit_hash,
         )
 
-        # Stage 5: Structure-Aware Code Chunking (60% -> 75%)
+        # Stage 5: Structure-Aware Code Chunking (60% -> 70%)
         await update_job_progress(
-            job_id, repo_id, status="processing", current_stage="Generating structure-aware code chunks and documentation sections", progress_pct=75
+            job_id, repo_id, status="processing", current_stage="Generating structure-aware code chunks and documentation sections", progress_pct=70
         )
 
         chunks = await loop.run_in_executor(
@@ -221,9 +223,9 @@ async def process_repository_job(
             repo_workspace,
         )
 
-        # Stage 6: Dense Embedding Generation & ChromaDB Storage (75% -> 90%)
+        # Stage 6: Dense Embedding Generation & ChromaDB Storage (70% -> 80%)
         await update_job_progress(
-            job_id, repo_id, status="processing", current_stage=f"Generating dense vector embeddings for {len(chunks)} code chunks (ChromaDB)", progress_pct=85
+            job_id, repo_id, status="processing", current_stage=f"Generating dense vector embeddings for {len(chunks)} code chunks (ChromaDB)", progress_pct=78
         )
 
         indexed_chunks_count = await loop.run_in_executor(
@@ -236,7 +238,21 @@ async def process_repository_job(
 
         logger.info(f"Indexed {indexed_chunks_count} chunks in ChromaDB for repo {repo_id}")
 
-        # Stage 7: Persist Analysis & File Metadata into SQLite (90% -> 100%)
+        # Stage 7: Knowledge Graph Construction & Persistence with NetworkX (80% -> 90%)
+        await update_job_progress(
+            job_id, repo_id, status="processing", current_stage="Constructing repository knowledge graph with NetworkX (containment, calls, dependencies)", progress_pct=88
+        )
+
+        graph_stats = await loop.run_in_executor(
+            None,
+            graph_builder.build_and_persist_graph,
+            parsed_repo,
+        )
+        logger.info(
+            f"Built knowledge graph for {repo_id}: {graph_stats['total_nodes']} nodes, {graph_stats['total_edges']} edges (density {graph_stats['density']})"
+        )
+
+        # Stage 8: Persist Analysis & File Metadata into SQLite (90% -> 100%)
         await update_job_progress(
             job_id, repo_id, status="processing", current_stage="Saving file metadata and directory structure", progress_pct=95
         )
@@ -293,7 +309,7 @@ async def process_repository_job(
 
         # Mark job completed
         await update_job_progress(
-            job_id, repo_id, status="completed", current_stage="Repository ingestion and vector indexing complete", progress_pct=100
+            job_id, repo_id, status="completed", current_stage="Repository ingestion, vector indexing, and knowledge graph complete", progress_pct=100
         )
 
     except Exception as e:

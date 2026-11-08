@@ -10,6 +10,7 @@ class NodeType(str, Enum):
     MODULE = "Module"
     CLASS = "Class"
     INTERFACE = "Interface"
+    STRUCT = "Struct"
     FUNCTION = "Function"
     METHOD = "Method"
     API_ENDPOINT = "ApiEndpoint"
@@ -29,11 +30,14 @@ class GraphNode(BaseModel):
     repository_id: str
     type: NodeType
     name: str
+    qualified_name: Optional[str] = None
     file_path: Optional[str] = None
     start_line: Optional[int] = None
     end_line: Optional[int] = None
     language: Optional[str] = None
     commit_hash: Optional[str] = None
+    symbol_id: Optional[str] = None
+    content_hash: Optional[str] = None
     properties: Dict[str, Any] = Field(default_factory=dict)
 
 class GraphEdge(BaseModel):
@@ -42,6 +46,8 @@ class GraphEdge(BaseModel):
     relationship: RelationshipType
     repository_id: str
     is_confirmed: bool = True  # Distinguish statically verified from unresolved relationships
+    confidence: float = 1.0  # 0.0 to 1.0 confidence score
+    resolution_status: str = "CONFIRMED"  # CONFIRMED, INFERRED, UNRESOLVED
     properties: Dict[str, Any] = Field(default_factory=dict)
 
 class BaseGraphStore(ABC):
@@ -67,6 +73,39 @@ class BaseGraphStore(ABC):
         pass
 
     @abstractmethod
+    def get_edge(
+        self, source_id: str, target_id: str, relationship: Optional[RelationshipType] = None
+    ) -> Optional[GraphEdge]:
+        """Retrieve an edge between two nodes."""
+        pass
+
+    @abstractmethod
+    def get_nodes(
+        self,
+        repository_id: str,
+        node_type: Optional[NodeType] = None,
+        file_path: Optional[str] = None,
+        query: Optional[str] = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> List[GraphNode]:
+        """Retrieve filtered and paginated nodes for a repository."""
+        pass
+
+    @abstractmethod
+    def get_edges(
+        self,
+        repository_id: str,
+        relationship: Optional[RelationshipType] = None,
+        source_id: Optional[str] = None,
+        target_id: Optional[str] = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> List[GraphEdge]:
+        """Retrieve filtered and paginated edges for a repository."""
+        pass
+
+    @abstractmethod
     def get_neighbors(self, node_id: str, direction: str = "both") -> List[GraphNode]:
         """Retrieve adjacent nodes."""
         pass
@@ -87,8 +126,27 @@ class BaseGraphStore(ABC):
         pass
 
     @abstractmethod
-    def get_subgraph(self, center_node_id: str, radius: int = 1) -> Dict[str, Any]:
+    def get_subgraph(
+        self, center_node_id: str, radius: int = 1, max_nodes: int = 50
+    ) -> Dict[str, Any]:
         """Extract an ego subgraph centered on the target node."""
+        pass
+
+    @abstractmethod
+    def find_paths(
+        self, source_id: str, target_id: str, max_depth: int = 5, limit: int = 10
+    ) -> List[List[str]]:
+        """Find bounded simple paths between two nodes."""
+        pass
+
+    @abstractmethod
+    def analyze_impact(self, node_id: str, depth: int = 2) -> Dict[str, Any]:
+        """Analyze blast radius / impacted symbols when a node changes."""
+        pass
+
+    @abstractmethod
+    def get_stats(self, repository_id: str) -> Dict[str, Any]:
+        """Get graph statistics (node counts, edge counts, density)."""
         pass
 
     @abstractmethod
@@ -99,5 +157,10 @@ class BaseGraphStore(ABC):
     @abstractmethod
     def load(self, repository_id: str) -> bool:
         """Load persisted graph from storage."""
+        pass
+
+    @abstractmethod
+    def delete(self, repository_id: str) -> bool:
+        """Delete persisted graph for a repository."""
         pass
 

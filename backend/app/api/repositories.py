@@ -32,6 +32,7 @@ from backend.app.services.indexing import (
 )
 from backend.app.ingestion.cloner import cleanup_workspace
 from backend.app.retrieval.semantic_search import semantic_search_service
+from backend.app.graph.networkx_store import networkx_graph_store
 
 router = APIRouter(prefix="/repositories", tags=["Repositories"])
 
@@ -466,8 +467,11 @@ async def delete_repository(
     # 2. Cleanup ChromaDB collection
     semantic_search_service.delete_repository(repository_id)
 
-    # 3. Cleanup SQLite record
+    # 3. Cleanup Knowledge Graph
+    networkx_graph_store.delete(repository_id)
+
+    # 4. Cleanup SQLite record
     await db.delete(repo)
     await db.commit()
 
-    return {"status": "success", "message": f"Repository '{repo.owner}/{repo.name}' and all vector indexes deleted successfully."}
+    return {"status": "success", "message": f"Repository '{repo.owner}/{repo.name}', vector indexes, and knowledge graph deleted successfully."}

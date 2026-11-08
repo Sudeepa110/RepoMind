@@ -102,12 +102,15 @@ def to_graph_elements(
                 props["call_count"] = 1
                 if line:
                     props["lines"] = [line]
+            res_stat = "CONFIRMED" if is_confirmed else (props.get("resolution") or "INFERRED")
             edge_map[key] = GraphEdge(
                 source_id=source_id,
                 target_id=target_id,
                 relationship=relationship,
                 repository_id=parsed_repo.repository_id,
                 is_confirmed=is_confirmed,
+                confidence=confidence,
+                resolution_status=res_stat,
                 properties=props,
             )
 
@@ -120,6 +123,7 @@ def to_graph_elements(
                 repository_id=parsed_repo.repository_id,
                 type=NodeType.FILE,
                 name=Path(file_path).name,
+                qualified_name=file_path,
                 file_path=file_path,
                 start_line=1,
                 end_line=file_data.line_count,
@@ -139,12 +143,14 @@ def to_graph_elements(
             confidence=1.0,
         )
 
-        # Symbols: CLASS, INTERFACE, FUNCTION, METHOD
+        # Symbols: CLASS, INTERFACE, STRUCT, FUNCTION, METHOD
         for sym in file_data.symbols:
             if sym.symbol_type == SymbolType.CLASS:
                 n_type = NodeType.CLASS
             elif sym.symbol_type == SymbolType.INTERFACE:
                 n_type = NodeType.INTERFACE
+            elif sym.symbol_type == SymbolType.STRUCT:
+                n_type = NodeType.STRUCT
             elif sym.symbol_type == SymbolType.METHOD:
                 n_type = NodeType.METHOD
             else:
@@ -155,11 +161,14 @@ def to_graph_elements(
                 repository_id=parsed_repo.repository_id,
                 type=n_type,
                 name=sym.name,
+                qualified_name=f"{file_path}:{sym.name}",
                 file_path=file_path,
                 start_line=sym.location.start_line,
                 end_line=sym.location.end_line,
                 language=file_data.language,
                 commit_hash=parsed_repo.commit_hash,
+                symbol_id=sym.symbol_id,
+                content_hash=sym.content_hash,
                 properties={
                     "content_hash": sym.content_hash,
                     "docstring": sym.docstring,

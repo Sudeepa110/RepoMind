@@ -6,6 +6,7 @@ from backend.app.config import settings
 from backend.app.database.session import init_db
 from backend.app.api.health import router as health_router
 from backend.app.api.repositories import router as repositories_router
+from backend.app.api.graph import router as graph_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -47,6 +48,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 # Routers
 app.include_router(health_router, prefix=settings.API_V1_STR)
 app.include_router(repositories_router, prefix=settings.API_V1_STR)
+app.include_router(graph_router, prefix=settings.API_V1_STR)
 
 @app.get("/")
 async def root():

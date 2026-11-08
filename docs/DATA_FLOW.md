@@ -95,4 +95,47 @@ sequenceDiagram
     User->>Frontend: Click "Open in Code Explorer"
     Frontend->>Explorer: Switch to Explorer tab, select file, and highlight lines
 ```
+
+---
+
+## 4. Knowledge Graph Construction & Traversal Flow (Phase 5 Completed)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User
+    participant Frontend as React Dashboard (Graph Tab)
+    participant API as FastAPI Graph Router (/repositories/{id}/graph)
+    participant Traversal as GraphTraversalService
+    participant Store as NetworkXGraphStore (DiGraph)
+    participant Disk as Storage (storage/graphs/{id}.json)
+
+    Note over API,Store: Indexing Stage 7: Graph Construction
+    API->>Store: Build nodes & edges from ParsedRepository
+    Store->>Disk: Atomic write to {id}.json.tmp -> {id}.json
+
+    Note over User,Disk: User Graph Exploration & Traversal
+    User->>Frontend: Select Knowledge Graph tab
+    Frontend->>API: GET /api/v1/repositories/{id}/graph/status
+    API->>Store: get_stats(repo_id)
+    Store-->>Frontend: Node counts, edge counts, density
+
+    User->>Frontend: Click symbol "authenticate_user" (Ego Subgraph)
+    Frontend->>API: GET /api/v1/repositories/{id}/graph/subgraph?center_node_id=...&radius=1
+    API->>Store: get_subgraph(center_node_id, radius=1, max_nodes=50)
+    Store-->>Frontend: Subgraph JSON (nodes, edges, relationships)
+    Frontend-->>User: Render interactive SVG radial layout with directed arrows
+
+    User->>Frontend: Click "View Call Hierarchy"
+    Frontend->>API: GET /api/v1/repositories/{id}/graph/callers?symbol=authenticate_user
+    API->>Traversal: find_callers(repo_id, "authenticate_user")
+    Traversal->>Store: Incoming CALLS edges
+    Store-->>Frontend: Callers with line numbers, call frequency, and confidence
+
+    User->>Frontend: Click "Calculate Blast Radius" (Impact Analysis)
+    Frontend->>API: GET /api/v1/repositories/{id}/graph/impact?target=authenticate_user&depth=2
+    API->>Traversal: analyze_impact(repo_id, "authenticate_user", depth=2)
+    Traversal->>Store: Reverse BFS along incoming callers and dependents
+    Store-->>Frontend: Impacted symbols, direct callers, and affected files list
+```
 ```

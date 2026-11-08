@@ -203,3 +203,74 @@
    - Frontend production build (`npm run build`) passing clean in 220ms.
 
 
+
+---
+
+## Phase 5: Knowledge Graph Construction, Persistence & Traversal
+
+**Date**: 2026-11-08  
+**Status**: COMPLETED & VERIFIED  
+**Backend Tests**: 64 / 64 passing (100% pass rate in 49.21s)  
+**Frontend Build**: Production build successful (317ms, 0 errors)  
+
+### Key Accomplishments & Deliverables
+
+1. **Knowledge Graph Architecture & Interfaces (`backend/app/graph/interfaces.py`)**:
+   - `NodeType`: Complete coverage of `Repository`, `Directory`, `File`, `Module`, `Class`, `Interface`, `Struct`, `Function`, `Method`, `ApiEndpoint`, `DatabaseModel`.
+   - `RelationshipType`: `CONTAINS`, `IMPORTS`, `CALLS`, `INHERITS`, `IMPLEMENTS`, `DEFINES`, `DEPENDS_ON`.
+   - `GraphNode` & `GraphEdge`: Explicit support for confidence scoring, confirmation status (`CONFIRMED`, `INFERRED`, `UNRESOLVED`), invocation line citations, and call counts.
+   - `BaseGraphStore`: Abstract base class defining node/edge manipulation, neighborhood traversal, callers/callees, inheritance, dependencies, bounded paths, and impact blast radius.
+
+2. **NetworkX Knowledge Graph Persistent Store (`backend/app/graph/networkx_store.py`)**:
+   - In-memory `networkx.DiGraph` instances strictly isolated per repository.
+   - **Structured JSON Persistence**: Employs `networkx.node_link_data` / `node_link_graph` with `edges="edges"`. Safely avoids unsafe pickle serialization.
+   - **Atomic Persistence**: Writes serialized graphs to `storage/graphs/{sanitized_repo_id}.json.tmp` and renames atomically via `os.replace` to prevent corrupted files on unexpected interruptions.
+   - **Safe Corrupted File Recovery**: Gracefully handles malformed or empty graph files by returning `False` without crashing.
+   - **Thread Safety**: Protected with reentrant locks (`threading.RLock`) for concurrent requests.
+   - **Repository Deletion Cleanup**: Purges graph files from disk and removes from memory cache.
+
+3. **Graph Construction Engine (`backend/app/graph/builder.py`)**:
+   - Consumes the shared Tree-sitter `ParsedRepository` intermediate representation and `to_graph_elements()` adapter.
+   - **Directory Containment**: Generates hierarchical `Directory` nodes and `CONTAINS` edges connecting repository root down to nested directories and files.
+   - **Node & Edge Validation**: Enforces repository ID alignment, valid identifiers, and removes invalid self-loops.
+   - **Call Deduplication**: Merges repeated calls between the same two symbols into a single edge preserving cumulative `call_count`, invocation `lines`, and confidence scores.
+
+4. **Graph Traversal Service (`backend/app/graph/traversal.py`)**:
+   - `find_callers`: Retrieves functions/methods calling a given symbol with invocation line numbers, call frequency, and confidence.
+   - `find_callees`: Retrieves functions/methods called by a given symbol.
+   - `find_inheritance_hierarchy`: Traces parent classes, subclasses, implemented interfaces, and class implementors.
+   - `find_dependencies`: Traces outgoing module imports and incoming dependent files.
+   - `find_execution_paths`: Bounded simple path exploration between two symbols along `CALLS` edges with max depth limits (disclaiming that static call graphs represent potential invocation paths).
+   - `analyze_impact`: Traverses incoming callers and dependents to calculate modification blast radius and list affected files.
+
+5. **Graph Query REST APIs (`backend/app/api/graph.py`)**:
+   - `GET /api/v1/repositories/{id}/graph/status`: Summary metrics (nodes, edges, density, confirmation breakdown).
+   - `GET /api/v1/repositories/{id}/graph/nodes`: Filtered, paginated node list (by type, file path, name query).
+   - `GET /api/v1/repositories/{id}/graph/edges`: Filtered, paginated edge list (by relationship, endpoints).
+   - `GET /api/v1/repositories/{id}/graph/callers`: Callers of a symbol.
+   - `GET /api/v1/repositories/{id}/graph/callees`: Callees of a symbol.
+   - `GET /api/v1/repositories/{id}/graph/inheritance`: Inheritance hierarchy.
+   - `GET /api/v1/repositories/{id}/graph/dependencies`: Module dependencies.
+   - `GET /api/v1/repositories/{id}/graph/paths`: Bounded execution paths between symbols.
+   - `GET /api/v1/repositories/{id}/graph/impact`: Modification blast radius and impacted files.
+   - `GET /api/v1/repositories/{id}/graph/subgraph`: Localized ego subgraph centered on a node.
+
+6. **Indexing Lifecycle Integration (`backend/app/services/indexing.py`)**:
+   - Integrated Stage 7: Knowledge Graph Construction & Persistence with NetworkX directly into background job runner.
+   - Updates `update_job_progress` stages (88% -> 100%).
+   - Integrated graph deletion into `delete_repository` in `repositories.py`.
+
+7. **Frontend Knowledge Graph Dashboard (`frontend/src/pages/DashboardPreview.tsx`)**:
+   - Dedicated **Knowledge Graph** tab with live node count pill.
+   - Interactive SVG ego subgraph visualizer with radial layout, colored node badges, directed relationship arrows, and click-to-center navigation.
+   - Entity Inspector side panel displaying signatures, docstrings, source lines, and one-click "Open in Code Explorer" action.
+   - Call Hierarchy explorer (Incoming Callers vs Outgoing Callees).
+   - Blast Radius impact explorer calculating affected files and direct callers.
+   - Filterable All Code Entities table.
+
+8. **Automated Testing & Regression Verification**:
+   - Unit tests (`tests/unit/test_graph_construction.py`): 6 tests verifying validation, deduplication, directory hierarchy, atomic JSON persistence, corrupted file recovery, and repository isolation.
+   - Traversal tests (`tests/unit/test_graph_traversal.py`): 7 tests verifying callers, callees, inheritance, dependencies, bounded paths, cycles/recursion safety, impact blast radius, and missing symbols.
+   - Integration tests (`tests/integration/test_graph_integration.py`): 2 tests verifying end-to-end multi-language parsing -> graph construction -> reload -> traversal and API endpoints.
+   - Full test suite: 64/64 tests passing 100% in 49.21s.
+   - Frontend production build (`npm run build`) passing clean in 317ms.
