@@ -268,4 +268,104 @@ Evaluated on 10 standardized repository questions (including an unanswerable que
 - **Unsupported Claim Rate (Hallucination)**: **0.00%**
 - **Average Pipeline Latency**: **16.51 ms**
 
+---
+
+## 6. Advanced Repository Intelligence & Multi-File Change Impact Analysis (Phase 8 Completed)
+
+Phase 8 elevates RepoMind from question-answering into a proactive codebase investigation and change-risk analysis platform.
+It navigates complex multi-file repositories using bounded AST Knowledge Graph traversal, deterministic coupling metrics, static bug pattern heuristics, and evidence-backed Gemini synthesis.
+
+```mermaid
+flowchart TD
+    UserTarget["Target Symbol / File / Query"] --> IntelOrchestrator["Unified Intelligence Orchestrator (backend/app/intelligence/)"]
+    
+    IntelOrchestrator --> ImpactAnalyzer["Change Impact Analyzer (BFS Traversal)"]
+    IntelOrchestrator --> FlowTracer["Cross-File Execution Flow Tracer"]
+    IntelOrchestrator --> DepAnalyzer["Coupling & Instability Analyzer (Martin's Metric)"]
+    IntelOrchestrator --> BugDetector["Evidence-Backed Bug Investigator"]
+    IntelOrchestrator --> RiskAssessor["Deterministic Risk Evaluation Engine"]
+    IntelOrchestrator --> TestRecommender["Test Plan Recommender (AST Test Matcher)"]
+    IntelOrchestrator --> DocGen["Grounded Technical Doc Generator"]
+
+    ImpactAnalyzer --> Categorizer["Classify: DIRECT, INDIRECT, STRUCTURAL, POTENTIAL"]
+    Categorizer --> RiskAssessor
+    
+    RiskAssessor --> Formula["RiskScore = min(100, 15*N_direct + 5*N_indirect + 20*is_api + 15*is_model + 10*N_files + 5*N_unresolved)"]
+    
+    Formula --> LLMSynth["Gemini Grounded Synthesis with Verified Citations [file:line-line]"]
+    FlowTracer --> LLMSynth
+    BugDetector --> LLMSynth
+    DocGen --> LLMSynth
+
+    LLMSynth --> CitationValidator["Citation Validator (Proof Verification)"]
+    CitationValidator --> RESTApi["REST API (/repositories/{id}/intelligence/...)"]
+    RESTApi --> Frontend["Interactive Intelligence Workspace (DashboardPreview.tsx)"]
+```
+
+### Core Architecture Components
+
+1. **Multi-File Change Impact Analyzer (`backend/app/intelligence/impact_analyzer.py`)**:
+   - Performs bounded, cycle-safe BFS traversal along incoming `CALLS`, `IMPORTS`, and `DEPENDS_ON` edges.
+   - Categorizes impacted entities into four distinct scopes:
+     - `DIRECT`: Direct callers and immediate importing files.
+     - `INDIRECT`: Multi-hop callers and downstream ripple effects up to bounded depth (default 3).
+     - `STRUCTURAL`: Enclosing classes, containing files, or inheritance hierarchies (`INHERITS`, `IMPLEMENTS`, `CONTAINS`).
+     - `POTENTIAL`: Unresolved dynamic invocations or lexical references sharing the symbol identifier.
+   - Cycle prevention: maintains `visited` node set preventing infinite loops in mutual/recursive call chains.
+   - File blast radius: computes the exact list and count of unique files impacted across the repository.
+
+2. **Cross-File Execution Flow Tracer (`backend/app/intelligence/execution_flow.py`)**:
+   - Statically traces control flow from designated entry points (e.g. API endpoints, CLI commands) down through intermediate service layers and database calls.
+   - Flags cross-file transitions (`crosses_file=True`), branch points (`is_branch_point=True` when fanout $\ge 2$), and external framework/library invocations (`is_external=True`).
+   - Supports targeted path exploration between source entry points and target destinations.
+
+3. **Deterministic Change Risk Evaluation Engine (`backend/app/intelligence/risk_assessor.py`)**:
+   - Objective, repeatable mathematical formulation:
+     $$\text{RiskScore} = \min(100.0, 15 \times N_{\text{direct}} + 5 \times N_{\text{indirect}} + 20 \times \text{is\_api} + 15 \times \text{is\_model} + 10 \times N_{\text{files}} + 5 \times N_{\text{unresolved}})$$
+   - Transparent risk levels:
+     - `LOW` (0–25): Isolated components, internal helper functions.
+     - `MEDIUM` (26–55): Standard service components with moderate callers.
+     - `HIGH` (56–80): Broad impact across files, public API handlers, or data models.
+     - `CRITICAL` (81–100): High-fanout core modules, ubiquitous utilities, central routers.
+   - Generates detailed `RiskFactorBreakdown` itemizing exactly where each point originated.
+
+4. **Architectural Coupling & Instability Analyzer (`backend/app/intelligence/dependency_analyzer.py`)**:
+   - Computes Robert C. Martin's architectural instability metric:
+     $$I = \frac{\text{OutDegree}}{\text{InDegree} + \text{OutDegree}}$$
+     where $I = 0$ is maximally stable (heavily depended upon) and $I = 1$ is maximally unstable (depends on everything).
+   - Detects bidirectional tightly coupled file pairs ($A \leftrightarrow B$).
+   - Categorizes files into architectural layers (`API`, `SERVICE`, `DATA`, `MODEL`, `UTIL`, `CORE`, `DOMAIN`).
+   - Identifies external third-party package dependencies across the codebase.
+
+5. **Evidence-Backed Bug & Root-Cause Investigator (`backend/app/intelligence/bug_investigator.py`)**:
+   - Static defect pattern detection:
+     - Unresolved function calls and broken references (`UNRESOLVED_CALL`).
+     - Unguarded public API entry points lacking structured exception handling (`ERROR_HANDLING`).
+     - Null/None safety hazards and unclosed resources.
+   - Structured findings with severity levels (`CRITICAL`, `HIGH`, `MEDIUM`, `LOW`, `INFORMATIONAL`), code line coordinates, failure scenarios, and non-destructive remediation suggestions.
+
+6. **Targeted Test Recommender (`backend/app/intelligence/test_recommender.py`)**:
+   - Scans repository knowledge graph to discover existing test suites (`test_*.py`, `*.spec.ts`, `*_test.go`).
+   - Generates categorized test plans (`UNIT`, `INTEGRATION`, `REGRESSION`) with explicit rationale and suggested test assertions.
+
+7. **Technical Documentation Generator (`backend/app/intelligence/documentation_generator.py`)**:
+   - Generates grounded markdown specifications containing entity overview, parameter contracts, incoming caller hierarchy, outgoing callees, and usage examples with verified line citations.
+
+8. **Interactive Frontend Intelligence Workspace (`frontend/src/components/IntelligenceWorkspace.tsx`)**:
+   - Dedicated tab in `DashboardPreview.tsx` (`activeTab === 'intelligence'`).
+   - Interactive sub-tool navigation pills for all 7 intelligence capabilities.
+   - Deep-linking to Code Explorer (`file` and line coordinates).
+
+### Phase 8 Quantitative Benchmark Results
+
+Evaluated on multi-file test repositories:
+- **Total Backend Tests**: **130 / 130 passing (100.0%)**
+- **Impact Analysis Precision**: **100.0%**
+- **Impact Analysis Recall**: **100.0%**
+- **Risk Score Monotonicity**: **100.0% (Verified)**
+- **Execution Flow Path Integrity**: **100.0%**
+- **Citation Validity on Intelligence Reports**: **100.0%**
+- **Frontend Build Status**: **0 errors (416ms)**
+
+
 

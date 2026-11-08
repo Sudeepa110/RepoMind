@@ -402,3 +402,85 @@
      - Average Pipeline Latency: **16.51 ms**
    - Full test suite: **115/115 tests passing (100%) in 155.41s**.
    - Frontend production build (`npm.cmd run build`): **0 errors, 402ms**.
+
+---
+
+## [Phase 8] - Advanced Repository Intelligence & Multi-File Change Impact Analysis
+
+### Objective
+Empower RepoMind to navigate complex multi-file repositories, assess the blast radius and architectural risk of code changes, trace cross-file execution flows, identify potential defect patterns, compute component coupling, recommend targeted test scenarios, and generate grounded technical specifications.
+
+### Key Milestones Completed
+
+1. **Intelligence Data Contracts (`backend/app/intelligence/intelligence_models.py`)**:
+   - Pydantic schemas for `ImpactAnalysisRequest` / `ImpactAnalysisResult` (`DIRECT`, `INDIRECT`, `STRUCTURAL`, `POTENTIAL`).
+   - `ExecutionFlowStep` / `ExecutionFlowResult` with cross-file and branching flags.
+   - `DependencyCouplingMetric` / `DependencyAnalysisResult` with Robert C. Martin's instability index ($I$).
+   - `BugFinding` / `BugInvestigationResult` with severity levels (`CRITICAL`, `HIGH`, `MEDIUM`, `LOW`, `INFORMATIONAL`).
+   - `RiskAssessmentResult` with formula breakdown factors.
+   - `TestRecommendation` (`UNIT`, `INTEGRATION`, `REGRESSION`) and `DocumentationResult`.
+   - `create_evidence_chunk` helper ensuring complete compatibility with `CitationValidator`.
+
+2. **Change Impact Analyzer (`backend/app/intelligence/impact_analyzer.py`)**:
+   - Bounded BFS traversal across incoming `CALLS`, `IMPORTS`, and `DEPENDS_ON` edges up to `max_depth`.
+   - Structural relation detection: `CONTAINS`, `INHERITS`, `IMPLEMENTS`.
+   - Cycle detection and resistance using visited node tracking.
+   - Blast radius aggregation (unique affected files and line coordinates).
+
+3. **Cross-File Execution Flow Tracer (`backend/app/intelligence/execution_flow.py`)**:
+   - Sequences invocation chains starting from designated entry points across file boundaries.
+   - Flags cross-file transitions (`crosses_file=True`), branch points ($\ge 2$ callees), and external library calls.
+   - Targeted path exploration between entry point and specific target symbols.
+
+4. **Deterministic Change Risk Assessor (`backend/app/intelligence/risk_assessor.py`)**:
+   - Objective, repeatable mathematical formulation:
+     $$\text{RiskScore} = \min(100.0, 15 \times N_{\text{direct}} + 5 \times N_{\text{indirect}} + 20 \times \text{is\_api} + 15 \times \text{is\_model} + 10 \times N_{\text{files}} + 5 \times N_{\text{unresolved}})$$
+   - Transparent risk tiers: `LOW` (0-25), `MEDIUM` (26-55), `HIGH` (56-80), `CRITICAL` (81-100).
+   - Itemized factor point contributions and justifications.
+
+5. **Architectural Coupling & Instability Analyzer (`backend/app/intelligence/dependency_analyzer.py`)**:
+   - Calculates in-degree, out-degree, and instability index $I = \frac{\text{Out}}{\text{In} + \text{Out}}$.
+   - Detects bidirectional tightly coupled circular dependencies ($A \leftrightarrow B$).
+   - Categorizes files into architectural layers (`API`, `SERVICE`, `DATA`, `MODEL`, `UTIL`, `CORE`, `DOMAIN`).
+   - Aggregates external package usage.
+
+6. **Evidence-Backed Bug Investigator (`backend/app/intelligence/bug_investigator.py`)**:
+   - Heuristics for unresolved calls, unguarded API endpoints lacking exception handling, and resource risks.
+   - Non-destructive remediation suggestions and failure scenarios.
+
+7. **Targeted Test Recommender (`backend/app/intelligence/test_recommender.py`)**:
+   - Discovers existing test files in repository.
+   - Generates unit, integration, and regression test recommendations with suggested assertions.
+
+8. **Technical Documentation Generator (`backend/app/intelligence/documentation_generator.py`)**:
+   - Generates grounded markdown specifications with verified source line citations.
+
+9. **Unified Orchestrator & REST API (`backend/app/api/intelligence.py`)**:
+   - Endpoints under `/api/v1/repositories/{id}/intelligence/...`:
+     - `POST /impact-analysis`
+     - `POST /execution-flow`
+     - `POST /dependencies`
+     - `POST /bug-investigation`
+     - `POST /risk-assessment`
+     - `POST /test-recommendations`
+     - `POST /documentation`
+
+10. **Interactive Frontend Intelligence Workspace (`frontend/src/components/IntelligenceWorkspace.tsx`)**:
+    - Dedicated "Intelligence" tab in `DashboardPreview.tsx` (`activeTab === 'intelligence'`).
+    - Sub-views with interactive controls for all 7 capabilities.
+    - Deep-linking to Code Explorer.
+
+11. **Comprehensive Verification**:
+    - Unit tests for impact analyzer (`tests/unit/test_impact_analyzer.py`): 4 tests passing.
+    - Unit tests for execution flow tracer (`tests/unit/test_execution_flow.py`): 2 tests passing.
+    - Unit tests for risk assessor (`tests/unit/test_risk_assessor.py`): 3 tests passing.
+    - Unit tests for dependency analyzer (`tests/unit/test_dependency_analyzer.py`): 1 test passing.
+    - Integration tests for intelligence REST API (`tests/integration/test_intelligence_api.py`): 1 test passing.
+    - Quantitative Evaluation Benchmark (`tests/evaluation/test_intelligence_evaluation.py`): 4 tests passing.
+      - Impact Precision: **100.0%**
+      - Impact Recall: **100.0%**
+      - Risk Monotonicity: **Verified**
+      - Execution Flow Path Integrity: **100.0%**
+      - Citation Validity: **100.0%**
+    - Full test suite: **130 / 130 passing (100.0%)**.
+    - Frontend production build: **0 errors in 416ms**.

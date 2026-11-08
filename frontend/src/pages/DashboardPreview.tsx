@@ -37,6 +37,7 @@ import {
   StopCircle,
 } from 'lucide-react';
 import { api } from '../services/api';
+import { IntelligenceWorkspace } from '../components/IntelligenceWorkspace';
 import type {
   ValidationResult,
   RepositoryDetail,
@@ -93,7 +94,7 @@ export const DashboardPreview: React.FC<DashboardPreviewProps> = ({
   validation,
   onBack,
 }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'explorer' | 'search' | 'graph' | 'chat'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'explorer' | 'search' | 'graph' | 'chat' | 'intelligence'>('overview');
   const [status, setStatus] = useState<IndexingStatus | null>(null);
   const [details, setDetails] = useState<RepositoryDetail | null>(null);
   const [tree, setTree] = useState<TreeNode | null>(null);
@@ -950,6 +951,21 @@ export const DashboardPreview: React.FC<DashboardPreviewProps> = ({
         >
           <MessageSquare className="h-4 w-4" />
           <span>Grounded RAG Chat</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('intelligence')}
+          className={`flex items-center space-x-2 border-b-2 px-3 py-2.5 text-sm font-medium transition-colors ${
+            activeTab === 'intelligence'
+              ? 'border-indigo-500 text-indigo-400'
+              : 'border-transparent text-slate-400 hover:text-white'
+          }`}
+        >
+          <Zap className="h-4 w-4" />
+          <span>Intelligence & Impact</span>
+          <span className="rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm">
+            Phase 8
+          </span>
         </button>
       </div>
 
@@ -2802,6 +2818,17 @@ export const DashboardPreview: React.FC<DashboardPreviewProps> = ({
               </div>
             </div>
           </div>
+        )}
+
+        {/* INTELLIGENCE TAB (PHASE 8) */}
+        {activeTab === 'intelligence' && details?.id && (
+          <IntelligenceWorkspace
+            repositoryId={details.id}
+            onNavigateToFile={(path, _line) => {
+              setActiveTab('explorer');
+              setSelectedFilePath(path);
+            }}
+          />
         )}
       </div>
     </div>

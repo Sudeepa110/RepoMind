@@ -262,3 +262,61 @@ sequenceDiagram
         API-->>Frontend: Stream: done
     end
 ```
+
+---
+
+## 5. Phase 8: Advanced Repository Intelligence & Multi-File Change Impact Analysis Flow
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Developer
+    participant UI as React Intelligence Workspace
+    participant API as FastAPI Intelligence Router (/repositories/{id}/intelligence/...)
+    participant Orch as IntelligenceOrchestrator
+    participant Impact as ChangeImpactAnalyzer
+    participant Flow as ExecutionFlowTracer
+    participant Dep as DependencyAnalyzer
+    participant Bug as BugInvestigator
+    participant Risk as RiskAssessor
+    participant Graph as NetworkX Knowledge Graph
+    participant Gemini as Google Gemini
+    participant Val as CitationValidator
+
+    Developer->>UI: Select Analysis Mode (Impact / Flow / Bugs / Risk / Tests / Docs)
+    Developer->>UI: Input Target Symbol or Entry Point
+    UI->>API: POST /api/v1/repositories/{id}/intelligence/{sub_tool}
+    API->>Orch: Dispatch to Specialized Intelligence Service
+
+    alt Change Impact Analysis
+        Orch->>Impact: analyze(repo_id, request)
+        Impact->>Graph: Bounded BFS Traversal along CALLS & IMPORTS (max_depth=3)
+        Graph-->>Impact: Direct callers, indirect propagation, structural parents
+        Impact->>Risk: calculate_risk(direct, indirect, affected_files, is_api, is_model)
+        Risk-->>Impact: Deterministic RiskScore (0-100) & Breakdown
+        Impact->>Gemini: Synthesize explanation with citations [file:start-end]
+        Gemini-->>Impact: Generated markdown
+        Impact->>Val: validate_citations(text, evidence_chunks)
+        Val-->>Impact: Verified citations
+        Impact-->>Orch: ImpactAnalysisResult
+    else Execution Flow Tracing
+        Orch->>Flow: trace_flow(repo_id, request)
+        Flow->>Graph: Traverse outgoing CALLS edges across file boundaries
+        Graph-->>Flow: Ordered steps with crosses_file, branch points, external libs
+        Flow->>Val: validate_citations(step_text, evidence_chunks)
+        Flow-->>Orch: ExecutionFlowResult
+    else Architectural Coupling
+        Orch->>Dep: analyze(repo_id)
+        Dep->>Graph: Calculate in-degree, out-degree, Martin's instability (I)
+        Dep-->>Orch: DependencyAnalysisResult (layers, coupled pairs, external libs)
+    else Bug Investigation
+        Orch->>Bug: investigate(repo_id, request)
+        Bug->>Graph: Scan unresolved calls, unguarded API handlers
+        Bug-->>Orch: BugInvestigationResult (findings, severity, remediation)
+    end
+
+    Orch-->>API: Intelligence Result Payload
+    API-->>UI: JSON Response
+    UI-->>Developer: Render interactive metrics, step flow, risk gauge, findings & verified citation links
+```
+

@@ -414,3 +414,214 @@ export interface StructuredAnswer {
   warnings: string[];
 }
 
+// --- Phase 8 Intelligence Types ---
+
+export type ImpactCategory = 'DIRECT' | 'INDIRECT' | 'STRUCTURAL' | 'POTENTIAL';
+
+export interface AffectedEntity {
+  symbol_id: string;
+  name: string;
+  type: string;
+  file_path: string;
+  start_line?: number;
+  end_line?: number;
+  category: ImpactCategory;
+  relationship_path: string[];
+  depth: number;
+  confidence: number;
+  resolution_status: string;
+  code_snippet?: string;
+}
+
+export interface ImpactAnalysisRequest {
+  target_symbol: string;
+  file_path?: string;
+  max_depth?: number;
+}
+
+export interface ImpactAnalysisResult {
+  target_symbol: string;
+  target_file?: string;
+  direct_count: number;
+  indirect_count: number;
+  structural_count: number;
+  potential_count: number;
+  total_affected_symbols: number;
+  total_affected_files: number;
+  affected_files: string[];
+  affected_entities: AffectedEntity[];
+  risk_score: number;
+  risk_level: string;
+  explanation: string;
+  citations: Citation[];
+  limitations: string[];
+}
+
+export interface ExecutionFlowStep {
+  step_index: number;
+  symbol_name: string;
+  symbol_type: string;
+  file_path: string;
+  start_line?: number;
+  end_line?: number;
+  caller_symbol?: string;
+  depth: number;
+  crosses_file: boolean;
+  is_external: boolean;
+  is_branch_point: boolean;
+  confidence: number;
+  resolution_status: string;
+  code_snippet?: string;
+}
+
+export interface ExecutionFlowRequest {
+  entry_point: string;
+  file_path?: string;
+  max_depth?: number;
+  target_symbol?: string;
+}
+
+export interface ExecutionFlowResult {
+  entry_point: string;
+  target_symbol?: string;
+  total_steps: number;
+  cross_file_count: number;
+  unresolved_calls: number;
+  steps: ExecutionFlowStep[];
+  involved_files: string[];
+  explanation: string;
+  citations: Citation[];
+  limitations: string[];
+}
+
+export interface DependencyCouplingMetric {
+  file_path: string;
+  module_name: string;
+  in_degree: number;
+  out_degree: number;
+  instability: number;
+  is_tightly_coupled: boolean;
+  direct_dependencies: string[];
+  direct_dependents: string[];
+  external_libraries: string[];
+  layer: string;
+}
+
+export interface DependencyAnalysisResult {
+  total_files: number;
+  total_modules: number;
+  average_instability: number;
+  tightly_coupled_pairs: Array<{ module_a: string; module_b: string; nature: string }>;
+  file_metrics: DependencyCouplingMetric[];
+  external_libraries: string[];
+  layer_distribution: Record<string, number>;
+  summary: string;
+  citations: Citation[];
+}
+
+export type BugSeverity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFORMATIONAL';
+export type BugCategory = 'ERROR_HANDLING' | 'NULL_SAFETY' | 'RESOURCE_LEAK' | 'TYPE_MISMATCH' | 'UNRESOLVED_CALL' | 'SECURITY_CONCERN' | 'CONCURRENCY';
+
+export interface BugFinding {
+  finding_id: string;
+  title: string;
+  category: BugCategory;
+  severity: BugSeverity;
+  affected_symbol: string;
+  file_path: string;
+  start_line: number;
+  end_line: number;
+  explanation: string;
+  evidence: string;
+  possible_failure_scenario: string;
+  suggested_remediation: string;
+  confidence: number;
+}
+
+export interface BugInvestigationRequest {
+  target?: string;
+  query?: string;
+}
+
+export interface BugInvestigationResult {
+  target?: string;
+  findings: BugFinding[];
+  total_findings: number;
+  critical_count: number;
+  high_count: number;
+  medium_count: number;
+  low_count: number;
+  explanation: string;
+  citations: Citation[];
+  limitations: string[];
+}
+
+export interface RiskFactorBreakdown {
+  factor_name: string;
+  points: number;
+  reason: string;
+}
+
+export interface RiskAssessmentRequest {
+  target_symbol: string;
+  file_path?: string;
+}
+
+export interface RiskAssessmentResult {
+  target_symbol: string;
+  target_file?: string;
+  risk_score: number;
+  risk_level: string;
+  blast_radius_files: number;
+  direct_dependents: number;
+  indirect_dependents: number;
+  is_public_api: boolean;
+  is_core_model: boolean;
+  formula_breakdown: RiskFactorBreakdown[];
+  summary: string;
+  citations: Citation[];
+  formula_explanation: string;
+}
+
+export type TestType = 'UNIT' | 'INTEGRATION' | 'REGRESSION' | 'E2E';
+
+export interface TestRecommendation {
+  recommendation_id: string;
+  category: TestType;
+  target_symbol: string;
+  file_path: string;
+  reason: string;
+  suggested_assertions: string[];
+  existing_test_reference?: string;
+  priority: string;
+}
+
+export interface TestRecommendationsRequest {
+  target_symbol: string;
+  file_path?: string;
+}
+
+export interface TestRecommendationsResult {
+  target_symbol: string;
+  existing_tests_found: string[];
+  recommendations: TestRecommendation[];
+  total_recommendations: number;
+  summary: string;
+  citations: Citation[];
+}
+
+export interface DocumentationRequest {
+  target: string;
+  file_path?: string;
+  doc_type?: string;
+}
+
+export interface DocumentationResult {
+  target_name: string;
+  target_type: string;
+  file_path: string;
+  markdown_documentation: string;
+  citations: Citation[];
+}
+
+

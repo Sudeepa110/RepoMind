@@ -9,6 +9,7 @@ from backend.app.api.repositories import router as repositories_router
 from backend.app.api.graph import router as graph_router
 from backend.app.api.hybrid_retrieval import router as hybrid_router
 from backend.app.api.chat import router as chat_router
+from backend.app.api.intelligence import router as intelligence_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -53,6 +54,7 @@ app.include_router(repositories_router, prefix=settings.API_V1_STR)
 app.include_router(graph_router, prefix=settings.API_V1_STR)
 app.include_router(hybrid_router, prefix=settings.API_V1_STR)
 app.include_router(chat_router, prefix=settings.API_V1_STR)
+app.include_router(intelligence_router, prefix=settings.API_V1_STR)
 
 @app.get("/")
 async def root():

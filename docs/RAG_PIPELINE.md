@@ -227,4 +227,28 @@ data: {"answer_id": "msg-1", "confidence": 0.95, "evidence_sufficiency": "SUFFIC
 - **Unsupported Claim Rate (Hallucination)**: **0.00%**
 - **Average Pipeline Latency**: **16.51 ms**
 
+---
+
+## 6. Phase 8: Knowledge Graph Traversal & Advanced Intelligence Pipeline
+
+Phase 8 expands RAG retrieval beyond isolated text chunks into connected code intelligence:
+
+1. **Multi-File Impact Traversal**:
+   - Starting from a symbol or file node in NetworkX, a breadth-first search moves along inbound `CALLS` and `IMPORTS` edges.
+   - Categorizes nodes by hop distance into `DIRECT` (hop 1), `INDIRECT` (hop $\ge 2$), `STRUCTURAL` (`CONTAINS`, `INHERITS`, `IMPLEMENTS`), and `POTENTIAL` (unresolved calls).
+   - Cycle prevention ensures recursion does not lead to duplicate traversal.
+
+2. **Execution Flow Sequencing**:
+   - Traces outgoing calls from entry points across file boundaries.
+   - Detects branching points (fanout $> 1$) and external library calls.
+
+3. **Deterministic Change Risk Evaluation**:
+   - Combines graph connectivity, blast radius, public API exposure, and core data models into a formula:
+     $$\text{RiskScore} = \min(100, 15 \times N_{\text{direct}} + 5 \times N_{\text{indirect}} + 20 \times \text{is\_api} + 15 \times \text{is\_model} + 10 \times N_{\text{files}} + 5 \times N_{\text{unresolved}})$$
+
+4. **Evidence-Backed Synthesis & Proof Verification**:
+   - Grounded explanations for impact analysis, execution flow, bug investigations, test plans, and technical specifications are synthesized with citations in syntax `[file:start-end]`.
+   - `CitationValidator` cross-references each cited line against the retrieved graph evidence chunks.
+
+
 

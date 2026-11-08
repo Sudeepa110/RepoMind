@@ -24,6 +24,19 @@ import type {
   ChatStreamRequest,
   StructuredAnswer,
   Citation,
+  ImpactAnalysisRequest,
+  ImpactAnalysisResult,
+  ExecutionFlowRequest,
+  ExecutionFlowResult,
+  DependencyAnalysisResult,
+  BugInvestigationRequest,
+  BugInvestigationResult,
+  RiskAssessmentRequest,
+  RiskAssessmentResult,
+  TestRecommendationsRequest,
+  TestRecommendationsResult,
+  DocumentationRequest,
+  DocumentationResult,
 } from '../types';
 
 const API_BASE = '/api/v1';
@@ -327,5 +340,82 @@ export const api = {
         }
       }
     }
+  },
+
+  // --- Phase 8 Intelligence Endpoints ---
+
+  async analyzeImpact(
+    repositoryId: string,
+    payload: ImpactAnalysisRequest
+  ): Promise<ImpactAnalysisResult> {
+    const res = await apiClient.post<ImpactAnalysisResult>(
+      `/repositories/${repositoryId}/intelligence/impact-analysis`,
+      payload
+    );
+    return res.data;
+  },
+
+  async traceExecutionFlow(
+    repositoryId: string,
+    payload: ExecutionFlowRequest
+  ): Promise<ExecutionFlowResult> {
+    const res = await apiClient.post<ExecutionFlowResult>(
+      `/repositories/${repositoryId}/intelligence/execution-flow`,
+      payload
+    );
+    return res.data;
+  },
+
+  async analyzeDependencies(
+    repositoryId: string
+  ): Promise<DependencyAnalysisResult> {
+    const res = await apiClient.post<DependencyAnalysisResult>(
+      `/repositories/${repositoryId}/intelligence/dependencies`
+    );
+    return res.data;
+  },
+
+  async investigateBugs(
+    repositoryId: string,
+    payload: BugInvestigationRequest
+  ): Promise<BugInvestigationResult> {
+    const res = await apiClient.post<BugInvestigationResult>(
+      `/repositories/${repositoryId}/intelligence/bug-investigation`,
+      payload
+    );
+    return res.data;
+  },
+
+  async assessRisk(
+    repositoryId: string,
+    payload: RiskAssessmentRequest
+  ): Promise<RiskAssessmentResult> {
+    const res = await apiClient.post<RiskAssessmentResult>(
+      `/repositories/${repositoryId}/intelligence/risk-assessment`,
+      payload
+    );
+    return res.data;
+  },
+
+  async recommendTests(
+    repositoryId: string,
+    payload: TestRecommendationsRequest
+  ): Promise<TestRecommendationsResult> {
+    const res = await apiClient.post<TestRecommendationsResult>(
+      `/repositories/${repositoryId}/intelligence/test-recommendations`,
+      payload
+    );
+    return res.data;
+  },
+
+  async generateDocumentation(
+    repositoryId: string,
+    payload: DocumentationRequest
+  ): Promise<DocumentationResult> {
+    const res = await apiClient.post<DocumentationResult>(
+      `/repositories/${repositoryId}/intelligence/documentation`,
+      payload
+    );
+    return res.data;
   },
 };
