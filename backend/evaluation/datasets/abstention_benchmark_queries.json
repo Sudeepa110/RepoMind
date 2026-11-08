@@ -318,5 +318,261 @@
     "category": "control_answerable",
     "should_abstain": false,
     "target_symbol": "PetController"
+  },
+  {
+    "query_id": "ABSTAIN_25_ENDPOINT_LOGOUT_ALL",
+    "repo_name": "synthetic_auth_repo",
+    "query": "How is the DELETE /api/v1/auth/logout/all_sessions endpoint implemented?",
+    "category": "nonexistent_endpoint",
+    "should_abstain": true,
+    "target_symbol": "/api/v1/auth/logout/all_sessions"
+  },
+  {
+    "query_id": "ABSTAIN_26_ENDPOINT_BATCH_PERMISSIONS",
+    "repo_name": "synthetic_auth_repo",
+    "query": "Where is the handler for PUT /api/v1/users/permissions/batch declared?",
+    "category": "nonexistent_endpoint",
+    "should_abstain": true,
+    "target_symbol": "/api/v1/users/permissions/batch"
+  },
+  {
+    "query_id": "ABSTAIN_27_ENDPOINT_TELEHEALTH",
+    "repo_name": "real_world_petclinic_subset",
+    "query": "Where is the POST /owners/{ownerId}/pets/telehealth route configured in PetClinic?",
+    "category": "nonexistent_endpoint",
+    "should_abstain": true,
+    "target_symbol": "/owners/{ownerId}/pets/telehealth"
+  },
+  {
+    "query_id": "ABSTAIN_28_ENDPOINT_REVOKE_BY_IP",
+    "repo_name": "synthetic_ts_express_repo",
+    "query": "Show the implementation of DELETE /api/v1/auth/tokens/revoke_by_ip.",
+    "category": "nonexistent_endpoint",
+    "should_abstain": true,
+    "target_symbol": "/api/v1/auth/tokens/revoke_by_ip"
+  },
+  {
+    "query_id": "ABSTAIN_29_METHOD_DELETE_LOGIN",
+    "repo_name": "synthetic_auth_repo",
+    "query": "What does DELETE /api/v1/auth/login return in the auth service?",
+    "category": "incorrect_http_method",
+    "should_abstain": true,
+    "target_symbol": "DELETE /api/v1/auth/login"
+  },
+  {
+    "query_id": "ABSTAIN_30_METHOD_DELETE_PET_NEW",
+    "repo_name": "real_world_petclinic_subset",
+    "query": "Show the handler for DELETE /owners/{ownerId}/pets/new in PetClinic.",
+    "category": "incorrect_http_method",
+    "should_abstain": true,
+    "target_symbol": "DELETE /owners/{ownerId}/pets/new"
+  },
+  {
+    "query_id": "ABSTAIN_31_METHOD_PUT_HTTP_STREAM",
+    "repo_name": "real_world_ky_subset",
+    "query": "Where is the PUT /api/v1/request/stream endpoint in Ky handled?",
+    "category": "incorrect_http_method",
+    "should_abstain": true,
+    "target_symbol": "PUT /api/v1/request/stream"
+  },
+  {
+    "query_id": "ABSTAIN_32_PREFIX_EXPORT_GDPR",
+    "repo_name": "synthetic_auth_repo",
+    "query": "Where is the GET /api/v1/users/export_csv_gdpr endpoint defined?",
+    "category": "similar_endpoint_prefix",
+    "should_abstain": true,
+    "target_symbol": "/api/v1/users/export_csv_gdpr"
+  },
+  {
+    "query_id": "ABSTAIN_33_PREFIX_MFA_TOTP",
+    "repo_name": "synthetic_ts_express_repo",
+    "query": "Where is the POST /api/v1/auth/mfa/totp_setup endpoint declared?",
+    "category": "similar_endpoint_prefix",
+    "should_abstain": true,
+    "target_symbol": "/api/v1/auth/mfa/totp_setup"
+  },
+  {
+    "query_id": "ABSTAIN_34_PREFIX_PET_VACCINATION",
+    "repo_name": "real_world_petclinic_subset",
+    "query": "Find the definition for GET /owners/{ownerId}/pets/vaccinations/history.",
+    "category": "similar_endpoint_prefix",
+    "should_abstain": true,
+    "target_symbol": "/owners/{ownerId}/pets/vaccinations/history"
+  },
+  {
+    "query_id": "ABSTAIN_35_DB_DYNAMODB_SESSIONS",
+    "repo_name": "synthetic_auth_repo",
+    "query": "Where is the Amazon DynamoDB table schema defined for user session state?",
+    "category": "unsupported_database",
+    "should_abstain": true,
+    "target_symbol": "DynamoDB"
+  },
+  {
+    "query_id": "ABSTAIN_36_DB_CLICKHOUSE_ANALYTICS",
+    "repo_name": "synthetic_ts_express_repo",
+    "query": "How is the ClickHouse column-oriented analytics cluster connected?",
+    "category": "unsupported_database",
+    "should_abstain": true,
+    "target_symbol": "ClickHouse"
+  },
+  {
+    "query_id": "ABSTAIN_37_DB_COUCHBASE_BUCKET",
+    "repo_name": "real_world_petclinic_subset",
+    "query": "Where is Couchbase document bucket replication initialized in PetClinic?",
+    "category": "unsupported_database",
+    "should_abstain": true,
+    "target_symbol": "Couchbase"
+  },
+  {
+    "query_id": "ABSTAIN_38_FW_RAILS_MIGRATIONS",
+    "repo_name": "synthetic_auth_repo",
+    "query": "Where are the Ruby on Rails ActiveRecord schema migrations stored?",
+    "category": "unsupported_framework",
+    "should_abstain": true,
+    "target_symbol": "ActiveRecord"
+  },
+  {
+    "query_id": "ABSTAIN_39_FW_DJANGO_MULTI_TENANT",
+    "repo_name": "real_world_flask_subset",
+    "query": "How does the Django ORM handle multi-tenant database routing?",
+    "category": "unsupported_framework",
+    "should_abstain": true,
+    "target_symbol": "Django ORM"
+  },
+  {
+    "query_id": "ABSTAIN_40_FW_NESTJS_MODULE",
+    "repo_name": "synthetic_ts_express_repo",
+    "query": "Where is the NestJS @Module dependency injection container defined?",
+    "category": "unsupported_framework",
+    "should_abstain": true,
+    "target_symbol": "NestJS"
+  },
+  {
+    "query_id": "ABSTAIN_41_CLASS_FAILOVER_COORDINATOR",
+    "repo_name": "synthetic_auth_repo",
+    "query": "Find the definition of MultiRegionFailoverCoordinator in the auth repo.",
+    "category": "nonexistent_class",
+    "should_abstain": true,
+    "target_symbol": "MultiRegionFailoverCoordinator"
+  },
+  {
+    "query_id": "ABSTAIN_42_CLASS_HSM_SIGNER",
+    "repo_name": "real_world_flask_subset",
+    "query": "Where is the HardwareSecurityModuleSigner class declared?",
+    "category": "nonexistent_class",
+    "should_abstain": true,
+    "target_symbol": "HardwareSecurityModuleSigner"
+  },
+  {
+    "query_id": "ABSTAIN_43_CLASS_GENOMIC_SEQUENCER",
+    "repo_name": "real_world_petclinic_subset",
+    "query": "Find the definition of the PetGenomicSequencingService class.",
+    "category": "nonexistent_class",
+    "should_abstain": true,
+    "target_symbol": "PetGenomicSequencingService"
+  },
+  {
+    "query_id": "ABSTAIN_44_METHOD_EVICT_DORMANT",
+    "repo_name": "synthetic_auth_repo",
+    "query": "Where is the evict_dormant_users_after_inactivity method implemented?",
+    "category": "nonexistent_method",
+    "should_abstain": true,
+    "target_symbol": "evict_dormant_users_after_inactivity"
+  },
+  {
+    "query_id": "ABSTAIN_45_METHOD_STREAM_RAW_CHUNKS",
+    "repo_name": "real_world_ky_subset",
+    "query": "Who calls HTTPError.streamRawBinaryChunks in Ky?",
+    "category": "nonexistent_method",
+    "should_abstain": true,
+    "target_symbol": "HTTPError.streamRawBinaryChunks"
+  },
+  {
+    "query_id": "ABSTAIN_46_CONFIG_JWT_PASSPHRASE",
+    "repo_name": "synthetic_auth_repo",
+    "query": "Where is the JWT_ECDSA_PRIVATE_KEY_PASSPHRASE configuration key defined?",
+    "category": "nonexistent_config",
+    "should_abstain": true,
+    "target_symbol": "JWT_ECDSA_PRIVATE_KEY_PASSPHRASE"
+  },
+  {
+    "query_id": "ABSTAIN_47_CONFIG_FLASK_ENTROPY",
+    "repo_name": "real_world_flask_subset",
+    "query": "Where is the FLASK_QUANTUM_ENTROPY_POOL configuration setting configured?",
+    "category": "nonexistent_config",
+    "should_abstain": true,
+    "target_symbol": "FLASK_QUANTUM_ENTROPY_POOL"
+  },
+  {
+    "query_id": "ABSTAIN_48_DOMAIN_SUPERSONIC_CRUISE",
+    "repo_name": "real_world_ky_subset",
+    "query": "What is the optimal aerodynamic wing sweep angle for supersonic cruise?",
+    "category": "unrelated_domain",
+    "should_abstain": true,
+    "target_symbol": "aerodynamic"
+  },
+  {
+    "query_id": "CONTROL_17_AUTH_SESSION_CONNECT",
+    "repo_name": "synthetic_auth_repo",
+    "query": "How does SessionManager connect to the database in session.py?",
+    "category": "control_answerable",
+    "should_abstain": false,
+    "target_symbol": "SessionManager"
+  },
+  {
+    "query_id": "CONTROL_18_AUTH_USER_MODEL",
+    "repo_name": "synthetic_auth_repo",
+    "query": "Where is the User domain entity declared in models/user.py?",
+    "category": "control_answerable",
+    "should_abstain": false,
+    "target_symbol": "User"
+  },
+  {
+    "query_id": "CONTROL_19_FLASK_WSGI_APP",
+    "repo_name": "real_world_flask_subset",
+    "query": "What does Flask.wsgi_app do when processing an incoming WSGI request?",
+    "category": "control_answerable",
+    "should_abstain": false,
+    "target_symbol": "Flask.wsgi_app"
+  },
+  {
+    "query_id": "CONTROL_20_FLASK_SCAFFOLD_ROUTE",
+    "repo_name": "real_world_flask_subset",
+    "query": "How does the route decorator in Scaffold register view endpoints?",
+    "category": "control_answerable",
+    "should_abstain": false,
+    "target_symbol": "Scaffold"
+  },
+  {
+    "query_id": "CONTROL_21_TS_TOKEN_VERIFY",
+    "repo_name": "synthetic_ts_express_repo",
+    "query": "Where is the verifyJwtToken method defined in TokenService?",
+    "category": "control_answerable",
+    "should_abstain": false,
+    "target_symbol": "verifyJwtToken"
+  },
+  {
+    "query_id": "CONTROL_22_KY_NORMALIZE",
+    "repo_name": "real_world_ky_subset",
+    "query": "How does normalize.ts validate and normalize HTTP request options?",
+    "category": "control_answerable",
+    "should_abstain": false,
+    "target_symbol": "normalize.ts"
+  },
+  {
+    "query_id": "CONTROL_23_PETCLINIC_BASE_ENTITY",
+    "repo_name": "real_world_petclinic_subset",
+    "query": "Which fields does BaseEntity declare in PetClinic?",
+    "category": "control_answerable",
+    "should_abstain": false,
+    "target_symbol": "BaseEntity"
+  },
+  {
+    "query_id": "CONTROL_24_PETCLINIC_PET_CONTROLLER_NEW",
+    "repo_name": "real_world_petclinic_subset",
+    "query": "Where is the GET /owners/{ownerId}/pets/new endpoint handled in PetController?",
+    "category": "control_answerable",
+    "should_abstain": false,
+    "target_symbol": "GET /owners/{ownerId}/pets/new"
   }
 ]

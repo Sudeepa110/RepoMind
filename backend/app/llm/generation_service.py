@@ -33,6 +33,11 @@ from backend.app.llm.gemini_client import (
     GeminiTimeoutError,
 )
 from backend.app.llm.citation_validator import CitationValidator
+from backend.app.retrieval.endpoint_matcher import (
+    extract_endpoint_from_query,
+    match_endpoint_against_chunks,
+    RouteMatchStatus,
+)
 from backend.app.llm.prompt_templates import SYSTEM_INSTRUCTION, build_generation_prompt
 from backend.app.llm.conversation_service import ConversationService, conversation_service
 from backend.app.retrieval.hybrid_retriever import HybridRetriever, hybrid_retriever
@@ -71,23 +76,113 @@ class GenerationService:
         """
         Multi-factor classification of whether retrieved evidence is sufficient,
         partial, insufficient, or absent to ground an accurate answer.
-        Evaluates symbol matches, confirmed graph relations, domain term alignment,
-        and calibrated dense vector similarity.
+        Evaluates exact API route matching, symbol matches, confirmed graph relations,
+        distinctive external technologies, domain term alignment, and calibrated similarity.
         """
         results = retrieval_response.results
         graph_ev = retrieval_response.graph_evidence
-        query = (retrieval_response.query or "").lower()
+        raw_query = retrieval_response.query or ""
+        query = raw_query.lower()
+        diagnostics = retrieval_response.diagnostics or {}
 
         if not results and not graph_ev:
             return EvidenceSufficiency.NO_EVIDENCE
 
-        # 1. Confirmed structural graph evidence provides direct ground truth
+        # ---------------------------------------------------------
+        # 1. API Route & Endpoint Matching Check (Phase 9.4)
+        # ---------------------------------------------------------
+        endpoint_target = extract_endpoint_from_query(raw_query)
+        if endpoint_target:
+            route_match = match_endpoint_against_chunks(endpoint_target, results)
+            if route_match.status == RouteMatchStatus.EXACT_MATCH:
+                return EvidenceSufficiency.SUFFICIENT
+            elif route_match.status == RouteMatchStatus.METHOD_MISMATCH:
+                # Path exists, but HTTP method is unsupported (e.g. DELETE /login)
+                return EvidenceSufficiency.INSUFFICIENT
+            elif route_match.status in (RouteMatchStatus.PREFIX_ONLY, RouteMatchStatus.NOT_FOUND):
+                # The endpoint path is absent or only a common prefix matches
+                return EvidenceSufficiency.NO_EVIDENCE
+
+        # ---------------------------------------------------------
+        # 2. Confirmed Structural Graph Evidence
+        # ---------------------------------------------------------
         confirmed_graph = [e for e in graph_ev if getattr(e, "is_confirmed", True)]
         if confirmed_graph:
             return EvidenceSufficiency.SUFFICIENT
 
-        # 2. Extract key domain terms and extracted symbols from query
-        query_symbols = set(retrieval_response.diagnostics.get("extracted_symbols", [])) if retrieval_response.diagnostics else set()
+        # ---------------------------------------------------------
+        # 3. Qualified Symbol Check (e.g. Class.method, Class::method)
+        # ---------------------------------------------------------
+        qualified_matches = re.findall(
+            r"\b([A-Z][a-zA-Z0-9_]*)[.:#]([a-zA-Z_][a-zA-Z0-9_]*)\b",
+            raw_query,
+        )
+        combined_code = " ".join(f"{r.symbol_name or ''} {r.source_code}".lower() for r in results)
+        if qualified_matches:
+            for cls_name, member_name in qualified_matches:
+                if member_name.lower() not in combined_code:
+                    return EvidenceSufficiency.NO_EVIDENCE
+
+        # ---------------------------------------------------------
+        # 4. Distinctive External Technology / Out-of-Scope Concepts
+        # ---------------------------------------------------------
+        DISTINCTIVE_SUBJECT_TERMS = {
+            "cassandra", "solidity", "kafka", "biometric", "facial", "fingerprint",
+            "crypto_wallet", "cryptocurrency", "bitcoin", "ethereum", "blockchain",
+            "couchbase", "dynamodb", "clickhouse", "neo4j", "kubernetes", "k8s",
+            "terraform", "graphql", "grpc", "protobuf", "credit_card", "creditcard",
+            "aws", "azure", "gcp", "stripe", "paypal", "salesforce", "twilio",
+            "sendgrid", "s3", "lambda", "sqs", "sns", "ecs", "eks", "datadog",
+            "pypi", "mortgage", "airline", "hipaa", "adjudicator", "coredump",
+            "quantum", "entropy", "hsm", "aerodynamic", "crispr", "telehealth",
+            "passphrase", "gpu", "gpus", "inference", "pytorch", "tensorflow",
+        }
+        words = set(re.findall(r"\b[a-zA-Z_][a-zA-Z0-9_]*\b", query))
+        distinctive_in_query = words.intersection(DISTINCTIVE_SUBJECT_TERMS)
+        if distinctive_in_query:
+            found = [t for t in distinctive_in_query if t in combined_code]
+            if not found:
+                return EvidenceSufficiency.NO_EVIDENCE
+
+        # ---------------------------------------------------------
+        # 5. Query-Extracted Symbol Verification
+        # ---------------------------------------------------------
+        query_symbols = set(diagnostics.get("extracted_symbols", [])) if diagnostics else set()
+        intent = diagnostics.get("intent")
+        top_score = results[0].original_score if results else 0.0
+
+        if query_symbols:
+            # Check if any symbol exactly matches a retrieved chunk's symbol_name
+            exact_match = any(
+                r.symbol_name in query_symbols or (r.symbol_name and r.symbol_name.lower() in {s.lower() for s in query_symbols})
+                for r in results
+            )
+            if exact_match:
+                return EvidenceSufficiency.SUFFICIENT
+
+            # Check if definition statement exists in source code
+            def_matched = False
+            for sym in query_symbols:
+                sym_l = sym.lower()
+                patterns = [
+                    f"def {sym_l}", f"class {sym_l}", f"function {sym_l}",
+                    f"interface {sym_l}", f"void {sym_l}", f"public {sym_l}",
+                ]
+                if any(p in combined_code for p in patterns):
+                    def_matched = True
+                    break
+            if def_matched:
+                return EvidenceSufficiency.SUFFICIENT
+
+            if intent in ("EXACT_SYMBOL", "SYMBOL"):
+                if top_score < 0.35:
+                    return EvidenceSufficiency.NO_EVIDENCE
+                else:
+                    return EvidenceSufficiency.INSUFFICIENT
+
+        # ---------------------------------------------------------
+        # 6. Domain Term Alignment & Calibrated Similarity
+        # ---------------------------------------------------------
         stop_terms = {
             "what", "where", "which", "when", "does", "have", "this", "that", "from", "with",
             "explain", "show", "find", "code", "repo", "repository", "codebase", "project",
@@ -95,39 +190,43 @@ class GenerationService:
             "file", "files", "defined", "definition", "implemented", "implementation", "call",
             "calls", "invokes", "invoke", "trace", "flow", "impact", "blast", "radius",
             "auth", "flask", "express", "petclinic", "spring", "sindresorhus", "pallets",
+            "stored", "configured", "database", "service", "client", "request", "response",
+            "used", "using", "uses", "handle", "handles", "handled", "perform", "performs",
+            "performed", "algorithm",
         }
-        words = re.findall(r"\b[a-zA-Z_][a-zA-Z0-9_]*\b", query)
         domain_terms = {w for w in words if len(w) >= 4 and w not in stop_terms}
-
-        # 3. Check for exact symbol definition match in results
-        for r in results:
-            if r.symbol_name and (r.symbol_name in query_symbols or r.symbol_name.lower() in domain_terms):
-                return EvidenceSufficiency.SUFFICIENT
-
-        # 4. Check domain terms in retrieved source code and symbols
-        combined_code = " ".join(f"{r.symbol_name or ''} {r.source_code}".lower() for r in results)
         matched_domain_terms = {t for t in domain_terms if t in combined_code}
 
-        top_score = results[0].original_score if results else 0.0
+        # Check if retrieved symbol name aligns with query domain terms
+        for r in results:
+            if r.symbol_name:
+                sym_lower = r.symbol_name.lower()
+                if any(t == sym_lower or (len(t) >= 4 and t in sym_lower) for t in domain_terms):
+                    if top_score >= 0.45:
+                        return EvidenceSufficiency.SUFFICIENT
 
-        # If query specified specific domain terms (e.g. 'cassandra', 'solidity', 'kafka', 'biometric')
-        # but NONE of them appeared in any retrieved chunk:
         if domain_terms and not matched_domain_terms:
-            if top_score < 0.32:
+            if top_score < 0.35:
                 return EvidenceSufficiency.NO_EVIDENCE
             else:
                 return EvidenceSufficiency.INSUFFICIENT
 
-        # If domain terms match in retrieved code
-        if matched_domain_terms:
-            if top_score >= 0.55 or len(matched_domain_terms) >= 2:
+        if domain_terms and matched_domain_terms:
+            coverage = len(matched_domain_terms) / len(domain_terms)
+            if top_score >= 0.65:
                 return EvidenceSufficiency.SUFFICIENT
-            elif top_score >= 0.38 or len(matched_domain_terms) >= 1:
+            elif top_score >= 0.50 and coverage >= 0.3:
+                return EvidenceSufficiency.SUFFICIENT
+            elif top_score >= 0.35 and coverage >= 0.2:
                 return EvidenceSufficiency.PARTIAL
-            else:
+            elif top_score >= 0.28:
                 return EvidenceSufficiency.INSUFFICIENT
+            else:
+                return EvidenceSufficiency.NO_EVIDENCE
 
-        # Conceptual query without specific domain tokens
+        # ---------------------------------------------------------
+        # 7. Conceptual / Architectural Queries
+        # ---------------------------------------------------------
         if top_score >= 0.55:
             return EvidenceSufficiency.SUFFICIENT
         elif top_score >= 0.38:

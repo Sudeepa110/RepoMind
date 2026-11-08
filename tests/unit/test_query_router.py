@@ -139,3 +139,4 @@ def test_routing_single_strategy_overrides():
     assert graph_plan.vector_enabled is False
     assert graph_plan.keyword_enabled is False
     assert graph_plan.strategies == [RetrievalStrategy.GRAPH]
+

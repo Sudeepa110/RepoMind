@@ -1,5 +1,6 @@
 from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from sqlalchemy.pool import NullPool
 from backend.app.config import settings
 from backend.app.database.models import Base
 
@@ -11,6 +12,7 @@ engine = create_async_engine(
     DATABASE_URL,
     echo=settings.DEBUG,
     future=True,
+    poolclass=NullPool,
 )
 
 AsyncSessionLocal = async_sessionmaker(

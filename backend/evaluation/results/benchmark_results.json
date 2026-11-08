@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "timestamp": "2026-11-08T16:07:02Z",
+    "timestamp": "2026-11-08T17:00:57Z",
     "phase": "Phase 9.3: Final Retrieval Routing, Abstention & Benchmark Reliability",
     "hardware": {
       "system": "HP Victus",
@@ -11,7 +11,7 @@
     },
     "total_queries_evaluated": 54,
     "total_retrieval_queries_evaluated": 54,
-    "total_abstention_queries_evaluated": 40
+    "total_abstention_queries_evaluated": 72
   },
   "indexing_performance": {
     "synthetic_auth_repo": {
@@ -87,12 +87,12 @@
         "ndcg@5": 0.6594,
         "file_accuracy": 0.9286,
         "symbol_accuracy": 0.7857,
-        "mean_latency_ms": 12.69,
-        "latency_p50_ms": 11.6,
-        "p50_latency_ms": 11.6,
-        "latency_p95_ms": 18.99,
-        "p95_latency_ms": 18.99,
-        "p99_latency_ms": 28.15,
+        "mean_latency_ms": 13.21,
+        "latency_p50_ms": 12.22,
+        "p50_latency_ms": 12.22,
+        "latency_p95_ms": 20.76,
+        "p95_latency_ms": 20.76,
+        "p99_latency_ms": 28.92,
         "total_queries": 14
       },
       "keyword_only": {
@@ -111,12 +111,12 @@
         "ndcg@5": 0.6519,
         "file_accuracy": 0.9286,
         "symbol_accuracy": 0.7143,
-        "mean_latency_ms": 1.66,
-        "latency_p50_ms": 1.36,
-        "p50_latency_ms": 1.36,
-        "latency_p95_ms": 2.51,
-        "p95_latency_ms": 2.51,
-        "p99_latency_ms": 2.6,
+        "mean_latency_ms": 1.52,
+        "latency_p50_ms": 1.59,
+        "p50_latency_ms": 1.59,
+        "latency_p95_ms": 1.84,
+        "p95_latency_ms": 1.84,
+        "p99_latency_ms": 1.86,
         "total_queries": 14
       },
       "graph_only": {
@@ -135,12 +135,12 @@
         "ndcg@5": 0.4506,
         "file_accuracy": 0.5714,
         "symbol_accuracy": 0.5714,
-        "mean_latency_ms": 1.48,
-        "latency_p50_ms": 0.96,
-        "p50_latency_ms": 0.96,
-        "latency_p95_ms": 3.82,
-        "p95_latency_ms": 3.82,
-        "p99_latency_ms": 5.0,
+        "mean_latency_ms": 1.38,
+        "latency_p50_ms": 0.75,
+        "p50_latency_ms": 0.75,
+        "latency_p95_ms": 3.75,
+        "p95_latency_ms": 3.75,
+        "p99_latency_ms": 4.95,
         "total_queries": 14
       },
       "hybrid": {
@@ -159,12 +159,12 @@
         "ndcg@5": 0.6571,
         "file_accuracy": 0.9286,
         "symbol_accuracy": 0.7857,
-        "mean_latency_ms": 12.54,
-        "latency_p50_ms": 13.56,
-        "p50_latency_ms": 13.56,
-        "latency_p95_ms": 15.12,
-        "p95_latency_ms": 15.12,
-        "p99_latency_ms": 15.57,
+        "mean_latency_ms": 12.03,
+        "latency_p50_ms": 13.27,
+        "p50_latency_ms": 13.27,
+        "latency_p95_ms": 14.48,
+        "p95_latency_ms": 14.48,
+        "p99_latency_ms": 14.49,
         "total_queries": 14
       }
     },
@@ -185,12 +185,12 @@
         "ndcg@5": 0.6494,
         "file_accuracy": 0.9091,
         "symbol_accuracy": 0.7273,
-        "mean_latency_ms": 11.14,
-        "latency_p50_ms": 10.97,
-        "p50_latency_ms": 10.97,
-        "latency_p95_ms": 12.46,
-        "p95_latency_ms": 12.46,
-        "p99_latency_ms": 12.76,
+        "mean_latency_ms": 11.28,
+        "latency_p50_ms": 10.92,
+        "p50_latency_ms": 10.92,
+        "latency_p95_ms": 14.11,
+        "p95_latency_ms": 14.11,
+        "p99_latency_ms": 15.15,
         "total_queries": 11
       },
       "keyword_only": {
@@ -209,12 +209,12 @@
         "ndcg@5": 0.5833,
         "file_accuracy": 0.9091,
         "symbol_accuracy": 0.7273,
-        "mean_latency_ms": 1.91,
-        "latency_p50_ms": 2.08,
-        "p50_latency_ms": 2.08,
-        "latency_p95_ms": 2.44,
-        "p95_latency_ms": 2.44,
-        "p99_latency_ms": 2.53,
+        "mean_latency_ms": 1.53,
+        "latency_p50_ms": 1.43,
+        "p50_latency_ms": 1.43,
+        "latency_p95_ms": 2.09,
+        "p95_latency_ms": 2.09,
+        "p99_latency_ms": 2.11,
         "total_queries": 11
       },
       "graph_only": {
@@ -233,12 +233,12 @@
         "ndcg@5": 0.3127,
         "file_accuracy": 0.5455,
         "symbol_accuracy": 0.3636,
-        "mean_latency_ms": 2.09,
-        "latency_p50_ms": 2.0,
-        "p50_latency_ms": 2.0,
-        "latency_p95_ms": 5.06,
-        "p95_latency_ms": 5.06,
-        "p99_latency_ms": 5.14,
+        "mean_latency_ms": 2.17,
+        "latency_p50_ms": 2.07,
+        "p50_latency_ms": 2.07,
+        "latency_p95_ms": 5.16,
+        "p95_latency_ms": 5.16,
+        "p99_latency_ms": 5.33,
         "total_queries": 11
       },
       "hybrid": {
@@ -257,12 +257,12 @@
         "ndcg@5": 0.7049,
         "file_accuracy": 0.9091,
         "symbol_accuracy": 0.7273,
-        "mean_latency_ms": 11.46,
-        "latency_p50_ms": 13.03,
-        "p50_latency_ms": 13.03,
-        "latency_p95_ms": 13.91,
-        "p95_latency_ms": 13.91,
-        "p99_latency_ms": 14.26,
+        "mean_latency_ms": 11.54,
+        "latency_p50_ms": 12.58,
+        "p50_latency_ms": 12.58,
+        "latency_p95_ms": 14.38,
+        "p95_latency_ms": 14.38,
+        "p99_latency_ms": 14.54,
         "total_queries": 11
       }
     },
@@ -283,12 +283,12 @@
         "ndcg@5": 0.4533,
         "file_accuracy": 0.7778,
         "symbol_accuracy": 0.6667,
-        "mean_latency_ms": 10.56,
-        "latency_p50_ms": 10.79,
-        "p50_latency_ms": 10.79,
-        "latency_p95_ms": 12.12,
-        "p95_latency_ms": 12.12,
-        "p99_latency_ms": 12.37,
+        "mean_latency_ms": 10.67,
+        "latency_p50_ms": 10.72,
+        "p50_latency_ms": 10.72,
+        "latency_p95_ms": 11.76,
+        "p95_latency_ms": 11.76,
+        "p99_latency_ms": 11.97,
         "total_queries": 9
       },
       "keyword_only": {
@@ -307,12 +307,12 @@
         "ndcg@5": 0.4485,
         "file_accuracy": 0.7778,
         "symbol_accuracy": 0.6667,
-        "mean_latency_ms": 1.37,
-        "latency_p50_ms": 1.21,
-        "p50_latency_ms": 1.21,
-        "latency_p95_ms": 2.17,
-        "p95_latency_ms": 2.17,
-        "p99_latency_ms": 2.2,
+        "mean_latency_ms": 1.49,
+        "latency_p50_ms": 1.23,
+        "p50_latency_ms": 1.23,
+        "latency_p95_ms": 2.34,
+        "p95_latency_ms": 2.34,
+        "p99_latency_ms": 2.4,
         "total_queries": 9
       },
       "graph_only": {
@@ -331,12 +331,12 @@
         "ndcg@5": 0.7675,
         "file_accuracy": 0.8889,
         "symbol_accuracy": 0.8889,
-        "mean_latency_ms": 2.46,
-        "latency_p50_ms": 1.31,
-        "p50_latency_ms": 1.31,
-        "latency_p95_ms": 6.2,
-        "p95_latency_ms": 6.2,
-        "p99_latency_ms": 7.01,
+        "mean_latency_ms": 3.02,
+        "latency_p50_ms": 2.4,
+        "p50_latency_ms": 2.4,
+        "latency_p95_ms": 7.0,
+        "p95_latency_ms": 7.0,
+        "p99_latency_ms": 8.26,
         "total_queries": 9
       },
       "hybrid": {
@@ -355,12 +355,12 @@
         "ndcg@5": 0.4316,
         "file_accuracy": 0.7778,
         "symbol_accuracy": 0.6667,
-        "mean_latency_ms": 10.41,
-        "latency_p50_ms": 11.7,
-        "p50_latency_ms": 11.7,
-        "latency_p95_ms": 12.77,
-        "p95_latency_ms": 12.77,
-        "p99_latency_ms": 12.98,
+        "mean_latency_ms": 11.34,
+        "latency_p50_ms": 12.38,
+        "p50_latency_ms": 12.38,
+        "latency_p95_ms": 14.61,
+        "p95_latency_ms": 14.61,
+        "p99_latency_ms": 14.71,
         "total_queries": 9
       }
     },
@@ -381,12 +381,12 @@
         "ndcg@5": 0.5663,
         "file_accuracy": 0.8,
         "symbol_accuracy": 0.8,
-        "mean_latency_ms": 10.19,
-        "latency_p50_ms": 10.11,
-        "p50_latency_ms": 10.11,
-        "latency_p95_ms": 10.99,
-        "p95_latency_ms": 10.99,
-        "p99_latency_ms": 11.09,
+        "mean_latency_ms": 10.71,
+        "latency_p50_ms": 9.99,
+        "p50_latency_ms": 9.99,
+        "latency_p95_ms": 12.08,
+        "p95_latency_ms": 12.08,
+        "p99_latency_ms": 12.11,
         "total_queries": 5
       },
       "keyword_only": {
@@ -405,11 +405,11 @@
         "ndcg@5": 0.5387,
         "file_accuracy": 0.6,
         "symbol_accuracy": 0.6,
-        "mean_latency_ms": 1.41,
-        "latency_p50_ms": 1.15,
-        "p50_latency_ms": 1.15,
-        "latency_p95_ms": 2.25,
-        "p95_latency_ms": 2.25,
+        "mean_latency_ms": 2.0,
+        "latency_p50_ms": 1.9,
+        "p50_latency_ms": 1.9,
+        "latency_p95_ms": 2.4,
+        "p95_latency_ms": 2.4,
         "p99_latency_ms": 2.42,
         "total_queries": 5
       },
@@ -429,12 +429,12 @@
         "ndcg@5": 0.6638,
         "file_accuracy": 0.8,
         "symbol_accuracy": 0.8,
-        "mean_latency_ms": 1.48,
-        "latency_p50_ms": 0.97,
-        "p50_latency_ms": 0.97,
-        "latency_p95_ms": 4.23,
-        "p95_latency_ms": 4.23,
-        "p99_latency_ms": 4.85,
+        "mean_latency_ms": 2.84,
+        "latency_p50_ms": 1.83,
+        "p50_latency_ms": 1.83,
+        "latency_p95_ms": 8.25,
+        "p95_latency_ms": 8.25,
+        "p99_latency_ms": 9.49,
         "total_queries": 5
       },
       "hybrid": {
@@ -453,12 +453,12 @@
         "ndcg@5": 0.5166,
         "file_accuracy": 0.8,
         "symbol_accuracy": 0.8,
-        "mean_latency_ms": 9.44,
-        "latency_p50_ms": 11.93,
-        "p50_latency_ms": 11.93,
-        "latency_p95_ms": 12.31,
-        "p95_latency_ms": 12.31,
-        "p99_latency_ms": 12.34,
+        "mean_latency_ms": 10.29,
+        "latency_p50_ms": 12.31,
+        "p50_latency_ms": 12.31,
+        "latency_p95_ms": 14.19,
+        "p95_latency_ms": 14.19,
+        "p99_latency_ms": 14.31,
         "total_queries": 5
       }
     },
@@ -479,12 +479,12 @@
         "ndcg@5": 0.4292,
         "file_accuracy": 0.6667,
         "symbol_accuracy": 0.5556,
-        "mean_latency_ms": 10.43,
-        "latency_p50_ms": 10.54,
-        "p50_latency_ms": 10.54,
-        "latency_p95_ms": 11.41,
-        "p95_latency_ms": 11.41,
-        "p99_latency_ms": 11.44,
+        "mean_latency_ms": 10.94,
+        "latency_p50_ms": 10.85,
+        "p50_latency_ms": 10.85,
+        "latency_p95_ms": 12.54,
+        "p95_latency_ms": 12.54,
+        "p99_latency_ms": 12.62,
         "total_queries": 9
       },
       "keyword_only": {
@@ -503,12 +503,12 @@
         "ndcg@5": 0.4966,
         "file_accuracy": 0.7778,
         "symbol_accuracy": 0.5556,
-        "mean_latency_ms": 1.38,
-        "latency_p50_ms": 1.27,
-        "p50_latency_ms": 1.27,
-        "latency_p95_ms": 2.2,
-        "p95_latency_ms": 2.2,
-        "p99_latency_ms": 2.29,
+        "mean_latency_ms": 1.2,
+        "latency_p50_ms": 1.17,
+        "p50_latency_ms": 1.17,
+        "latency_p95_ms": 1.42,
+        "p95_latency_ms": 1.42,
+        "p99_latency_ms": 1.48,
         "total_queries": 9
       },
       "graph_only": {
@@ -527,12 +527,12 @@
         "ndcg@5": 0.7632,
         "file_accuracy": 0.7778,
         "symbol_accuracy": 0.7778,
-        "mean_latency_ms": 1.11,
-        "latency_p50_ms": 0.96,
-        "p50_latency_ms": 0.96,
-        "latency_p95_ms": 2.56,
-        "p95_latency_ms": 2.56,
-        "p99_latency_ms": 2.73,
+        "mean_latency_ms": 1.98,
+        "latency_p50_ms": 2.02,
+        "p50_latency_ms": 2.02,
+        "latency_p95_ms": 4.37,
+        "p95_latency_ms": 4.37,
+        "p99_latency_ms": 4.43,
         "total_queries": 9
       },
       "hybrid": {
@@ -551,12 +551,12 @@
         "ndcg@5": 0.4441,
         "file_accuracy": 0.6667,
         "symbol_accuracy": 0.6667,
-        "mean_latency_ms": 11.11,
-        "latency_p50_ms": 12.47,
-        "p50_latency_ms": 12.47,
-        "latency_p95_ms": 13.98,
-        "p95_latency_ms": 13.98,
-        "p99_latency_ms": 14.34,
+        "mean_latency_ms": 10.48,
+        "latency_p50_ms": 10.96,
+        "p50_latency_ms": 10.96,
+        "latency_p95_ms": 13.22,
+        "p95_latency_ms": 13.22,
+        "p99_latency_ms": 13.25,
         "total_queries": 9
       }
     },
@@ -577,12 +577,12 @@
         "ndcg@5": 0.4422,
         "file_accuracy": 0.6667,
         "symbol_accuracy": 0.5,
-        "mean_latency_ms": 10.52,
-        "latency_p50_ms": 10.13,
-        "p50_latency_ms": 10.13,
-        "latency_p95_ms": 11.66,
-        "p95_latency_ms": 11.66,
-        "p99_latency_ms": 11.87,
+        "mean_latency_ms": 11.93,
+        "latency_p50_ms": 12.31,
+        "p50_latency_ms": 12.31,
+        "latency_p95_ms": 12.75,
+        "p95_latency_ms": 12.75,
+        "p99_latency_ms": 12.77,
         "total_queries": 6
       },
       "keyword_only": {
@@ -601,12 +601,12 @@
         "ndcg@5": 0.4466,
         "file_accuracy": 0.5,
         "symbol_accuracy": 0.5,
-        "mean_latency_ms": 2.13,
-        "latency_p50_ms": 2.23,
-        "p50_latency_ms": 2.23,
-        "latency_p95_ms": 2.65,
-        "p95_latency_ms": 2.65,
-        "p99_latency_ms": 2.7,
+        "mean_latency_ms": 2.6,
+        "latency_p50_ms": 2.51,
+        "p50_latency_ms": 2.51,
+        "latency_p95_ms": 3.07,
+        "p95_latency_ms": 3.07,
+        "p99_latency_ms": 3.13,
         "total_queries": 6
       },
       "graph_only": {
@@ -625,12 +625,12 @@
         "ndcg@5": 0.5645,
         "file_accuracy": 0.6667,
         "symbol_accuracy": 0.5,
-        "mean_latency_ms": 1.25,
-        "latency_p50_ms": 0.88,
-        "p50_latency_ms": 0.88,
-        "latency_p95_ms": 2.85,
-        "p95_latency_ms": 2.85,
-        "p99_latency_ms": 3.0,
+        "mean_latency_ms": 1.52,
+        "latency_p50_ms": 1.01,
+        "p50_latency_ms": 1.01,
+        "latency_p95_ms": 3.65,
+        "p95_latency_ms": 3.65,
+        "p99_latency_ms": 3.92,
         "total_queries": 6
       },
       "hybrid": {
@@ -649,47 +649,72 @@
         "ndcg@5": 0.4715,
         "file_accuracy": 0.5,
         "symbol_accuracy": 0.5,
-        "mean_latency_ms": 10.6,
-        "latency_p50_ms": 12.65,
-        "p50_latency_ms": 12.65,
-        "latency_p95_ms": 13.52,
-        "p95_latency_ms": 13.52,
-        "p99_latency_ms": 13.56,
+        "mean_latency_ms": 10.72,
+        "latency_p50_ms": 12.28,
+        "p50_latency_ms": 12.28,
+        "latency_p95_ms": 14.59,
+        "p95_latency_ms": 14.59,
+        "p99_latency_ms": 14.74,
         "total_queries": 6
       }
     }
   },
   "balanced_abstention_benchmark": {
     "summary": {
-      "total_queries": 40,
-      "out_of_scope_queries_count": 24,
-      "answerable_control_queries_count": 16,
-      "true_abstentions": 17,
-      "false_answers": 7,
-      "true_answers": 16,
-      "false_abstentions": 0,
+      "total_queries": 72,
+      "out_of_scope_queries_count": 48,
+      "answerable_control_queries_count": 24,
+      "true_abstentions": 48,
+      "false_answers": 0,
+      "true_answers": 21,
+      "false_abstentions": 3,
+      "confusion_matrix": {
+        "true_positives_abstained": 48,
+        "false_negatives_answered": 0,
+        "true_negatives_answered": 21,
+        "false_positives_abstained": 3
+      },
+      "abstention_precision": 0.9412,
+      "abstention_recall": 1.0,
+      "specificity": 0.875,
+      "balanced_accuracy": 0.9375,
+      "false_answer_rate": 0.0,
+      "false_refusal_rate": 0.125,
+      "overall_accuracy": 0.9583
+    },
+    "endpoint_breakdown": {
+      "total_endpoint_queries": 13,
+      "out_of_scope_endpoint_count": 13,
+      "true_abstentions": 13,
+      "false_answers": 0,
       "abstention_precision": 1.0,
-      "abstention_recall": 0.7083,
-      "false_answer_rate": 0.2917,
-      "false_abstention_rate": 0.0,
-      "overall_accuracy": 0.825
+      "abstention_recall": 1.0,
+      "false_answer_rate": 0.0
+    },
+    "general_oos_breakdown": {
+      "total_general_queries": 59,
+      "out_of_scope_general_count": 35,
+      "true_abstentions": 35,
+      "false_answers": 0,
+      "abstention_recall": 1.0,
+      "false_answer_rate": 0.0
     },
     "evidence_sufficiency_distribution": {
       "NO_EVIDENCE": {
-        "count": 8,
-        "percentage": 20.0
+        "count": 47,
+        "percentage": 65.28
       },
       "INSUFFICIENT": {
-        "count": 9,
-        "percentage": 22.5
+        "count": 4,
+        "percentage": 5.56
       },
       "PARTIAL": {
         "count": 0,
         "percentage": 0.0
       },
       "SUFFICIENT": {
-        "count": 23,
-        "percentage": 57.5
+        "count": 21,
+        "percentage": 29.17
       }
     },
     "category_breakdown": {
@@ -701,18 +726,18 @@
         "abstention_rate": 1.0
       },
       "nonexistent_class": {
-        "total": 3,
-        "correct": 3,
+        "total": 6,
+        "correct": 6,
         "accuracy": 1.0,
-        "abstained": 3,
+        "abstained": 6,
         "abstention_rate": 1.0
       },
       "nonexistent_endpoint": {
-        "total": 3,
-        "correct": 0,
-        "accuracy": 0.0,
-        "abstained": 0,
-        "abstention_rate": 0.0
+        "total": 7,
+        "correct": 7,
+        "accuracy": 1.0,
+        "abstained": 7,
+        "abstention_rate": 1.0
       },
       "unsupported_technology": {
         "total": 4,
@@ -723,38 +748,80 @@
       },
       "feature_absent": {
         "total": 3,
-        "correct": 1,
-        "accuracy": 0.3333,
-        "abstained": 1,
-        "abstention_rate": 0.3333
+        "correct": 3,
+        "accuracy": 1.0,
+        "abstained": 3,
+        "abstention_rate": 1.0
       },
       "unrelated_domain": {
+        "total": 4,
+        "correct": 4,
+        "accuracy": 1.0,
+        "abstained": 4,
+        "abstention_rate": 1.0
+      },
+      "unavailable_evidence": {
         "total": 3,
         "correct": 3,
         "accuracy": 1.0,
         "abstained": 3,
         "abstention_rate": 1.0
       },
-      "unavailable_evidence": {
-        "total": 3,
-        "correct": 2,
-        "accuracy": 0.6667,
-        "abstained": 2,
-        "abstention_rate": 0.6667
-      },
       "plausible_nonexistent_identifier": {
         "total": 2,
-        "correct": 1,
-        "accuracy": 0.5,
-        "abstained": 1,
-        "abstention_rate": 0.5
+        "correct": 2,
+        "accuracy": 1.0,
+        "abstained": 2,
+        "abstention_rate": 1.0
       },
       "control_answerable": {
-        "total": 16,
-        "correct": 16,
+        "total": 24,
+        "correct": 21,
+        "accuracy": 0.875,
+        "abstained": 3,
+        "abstention_rate": 0.125
+      },
+      "incorrect_http_method": {
+        "total": 3,
+        "correct": 3,
         "accuracy": 1.0,
-        "abstained": 0,
-        "abstention_rate": 0.0
+        "abstained": 3,
+        "abstention_rate": 1.0
+      },
+      "similar_endpoint_prefix": {
+        "total": 3,
+        "correct": 3,
+        "accuracy": 1.0,
+        "abstained": 3,
+        "abstention_rate": 1.0
+      },
+      "unsupported_database": {
+        "total": 3,
+        "correct": 3,
+        "accuracy": 1.0,
+        "abstained": 3,
+        "abstention_rate": 1.0
+      },
+      "unsupported_framework": {
+        "total": 3,
+        "correct": 3,
+        "accuracy": 1.0,
+        "abstained": 3,
+        "abstention_rate": 1.0
+      },
+      "nonexistent_method": {
+        "total": 2,
+        "correct": 2,
+        "accuracy": 1.0,
+        "abstained": 2,
+        "abstention_rate": 1.0
+      },
+      "nonexistent_config": {
+        "total": 2,
+        "correct": 2,
+        "accuracy": 1.0,
+        "abstained": 2,
+        "abstention_rate": 1.0
       }
     },
     "detailed_records": [
@@ -842,9 +909,9 @@
         "category": "nonexistent_endpoint",
         "query": "How is the DELETE /api/v2/users/crypto_wallet endpoint implemented?",
         "should_abstain": true,
-        "did_abstain": false,
-        "evidence_sufficiency": "SUFFICIENT",
-        "is_correct": false,
+        "did_abstain": true,
+        "evidence_sufficiency": "NO_EVIDENCE",
+        "is_correct": true,
         "total_results": 5,
         "graph_evidence_count": 0,
         "top_result": "delete_account_endpoint (api/routes.py) score=0.7518"
@@ -855,9 +922,9 @@
         "category": "nonexistent_endpoint",
         "query": "Show the implementation of the POST /api/v1/auth/webauthn/verify endpoint.",
         "should_abstain": true,
-        "did_abstain": false,
-        "evidence_sufficiency": "SUFFICIENT",
-        "is_correct": false,
+        "did_abstain": true,
+        "evidence_sufficiency": "NO_EVIDENCE",
+        "is_correct": true,
         "total_results": 5,
         "graph_evidence_count": 0,
         "top_result": "authenticateMiddleware (src/middleware/authenticate.middleware.ts) score=0.7341"
@@ -868,12 +935,12 @@
         "category": "nonexistent_endpoint",
         "query": "Where is the /api/internal/debug/coredump route handler defined?",
         "should_abstain": true,
-        "did_abstain": false,
-        "evidence_sufficiency": "SUFFICIENT",
-        "is_correct": false,
-        "total_results": 5,
+        "did_abstain": true,
+        "evidence_sufficiency": "NO_EVIDENCE",
+        "is_correct": true,
+        "total_results": 0,
         "graph_evidence_count": 0,
-        "top_result": "route (src/flask/scaffold.py) score=0.6418"
+        "top_result": "None"
       },
       {
         "query_id": "ABSTAIN_10_TECH_CASSANDRA_REPLICATION",
@@ -882,7 +949,7 @@
         "query": "Where is the Cassandra replication cluster configured in this codebase?",
         "should_abstain": true,
         "did_abstain": true,
-        "evidence_sufficiency": "INSUFFICIENT",
+        "evidence_sufficiency": "NO_EVIDENCE",
         "is_correct": true,
         "total_results": 5,
         "graph_evidence_count": 0,
@@ -908,7 +975,7 @@
         "query": "How is the Neo4j graph database driver initialized in PetClinic?",
         "should_abstain": true,
         "did_abstain": true,
-        "evidence_sufficiency": "INSUFFICIENT",
+        "evidence_sufficiency": "NO_EVIDENCE",
         "is_correct": true,
         "total_results": 5,
         "graph_evidence_count": 0,
@@ -933,9 +1000,9 @@
         "category": "feature_absent",
         "query": "How is multi-factor biometric SMS OTP verification handled in the auth service?",
         "should_abstain": true,
-        "did_abstain": false,
-        "evidence_sufficiency": "SUFFICIENT",
-        "is_correct": false,
+        "did_abstain": true,
+        "evidence_sufficiency": "NO_EVIDENCE",
+        "is_correct": true,
         "total_results": 5,
         "graph_evidence_count": 0,
         "top_result": "authenticate_user (services/auth_service.py) score=0.6497"
@@ -947,7 +1014,7 @@
         "query": "Explain how automated Stripe credit card chargebacks and disputes are processed.",
         "should_abstain": true,
         "did_abstain": true,
-        "evidence_sufficiency": "INSUFFICIENT",
+        "evidence_sufficiency": "NO_EVIDENCE",
         "is_correct": true,
         "total_results": 5,
         "graph_evidence_count": 0,
@@ -959,12 +1026,12 @@
         "category": "feature_absent",
         "query": "How does Flask perform distributed machine learning model inference across GPUs?",
         "should_abstain": true,
-        "did_abstain": false,
-        "evidence_sufficiency": "SUFFICIENT",
-        "is_correct": false,
-        "total_results": 5,
+        "did_abstain": true,
+        "evidence_sufficiency": "NO_EVIDENCE",
+        "is_correct": true,
+        "total_results": 0,
         "graph_evidence_count": 0,
-        "top_result": "full_dispatch_request (src/flask/app.py) score=0.6839"
+        "top_result": "None"
       },
       {
         "query_id": "ABSTAIN_17_DOMAIN_MORTGAGE_CALC",
@@ -973,7 +1040,7 @@
         "query": "What is the calculation formula for commercial real-estate mortgage interest amortizations?",
         "should_abstain": true,
         "did_abstain": true,
-        "evidence_sufficiency": "INSUFFICIENT",
+        "evidence_sufficiency": "NO_EVIDENCE",
         "is_correct": true,
         "total_results": 5,
         "graph_evidence_count": 0,
@@ -986,7 +1053,7 @@
         "query": "How are airline passenger seat upgrades priced and allocated during flight check-in?",
         "should_abstain": true,
         "did_abstain": true,
-        "evidence_sufficiency": "INSUFFICIENT",
+        "evidence_sufficiency": "NO_EVIDENCE",
         "is_correct": true,
         "total_results": 5,
         "graph_evidence_count": 0,
@@ -999,7 +1066,7 @@
         "query": "How does the patient health insurance HIPAA claim adjudicator calculate medical copays?",
         "should_abstain": true,
         "did_abstain": true,
-        "evidence_sufficiency": "INSUFFICIENT",
+        "evidence_sufficiency": "NO_EVIDENCE",
         "is_correct": true,
         "total_results": 5,
         "graph_evidence_count": 0,
@@ -1011,9 +1078,9 @@
         "category": "unavailable_evidence",
         "query": "What is the live AWS production database master password in this repository?",
         "should_abstain": true,
-        "did_abstain": false,
-        "evidence_sufficiency": "SUFFICIENT",
-        "is_correct": false,
+        "did_abstain": true,
+        "evidence_sufficiency": "NO_EVIDENCE",
+        "is_correct": true,
         "total_results": 5,
         "graph_evidence_count": 0,
         "top_result": "AuthService (services/auth_service.py) score=0.6406"
@@ -1038,7 +1105,7 @@
         "query": "Where are the Datadog production APM distributed tracing credentials configured in PetClinic?",
         "should_abstain": true,
         "did_abstain": true,
-        "evidence_sufficiency": "INSUFFICIENT",
+        "evidence_sufficiency": "NO_EVIDENCE",
         "is_correct": true,
         "total_results": 5,
         "graph_evidence_count": 0,
@@ -1063,9 +1130,9 @@
         "category": "plausible_nonexistent_identifier",
         "query": "What does AuthController.generateDelegatedOAuthTokens invoke?",
         "should_abstain": true,
-        "did_abstain": false,
-        "evidence_sufficiency": "SUFFICIENT",
-        "is_correct": false,
+        "did_abstain": true,
+        "evidence_sufficiency": "NO_EVIDENCE",
+        "is_correct": true,
         "total_results": 2,
         "graph_evidence_count": 0,
         "top_result": "AuthController (src/controllers/auth.controller.ts) score=-3.9397910126558844"
@@ -1141,12 +1208,12 @@
         "category": "control_answerable",
         "query": "Explain how application configuration values and environment variables are loaded in Flask.",
         "should_abstain": false,
-        "did_abstain": false,
-        "evidence_sufficiency": "SUFFICIENT",
-        "is_correct": true,
-        "total_results": 5,
+        "did_abstain": true,
+        "evidence_sufficiency": "NO_EVIDENCE",
+        "is_correct": false,
+        "total_results": 0,
         "graph_evidence_count": 0,
-        "top_result": "from_envvar (src/flask/config.py) score=0.8903"
+        "top_result": "None"
       },
       {
         "query_id": "CONTROL_07_TS_AUTH_CONTROLLER",
@@ -1277,6 +1344,422 @@
         "total_results": 5,
         "graph_evidence_count": 0,
         "top_result": "PetController (src/main/java/org/springframework/samples/petclinic/owner/PetController.java) score=-8.19676157161625"
+      },
+      {
+        "query_id": "ABSTAIN_25_ENDPOINT_LOGOUT_ALL",
+        "repo_name": "synthetic_auth_repo",
+        "category": "nonexistent_endpoint",
+        "query": "How is the DELETE /api/v1/auth/logout/all_sessions endpoint implemented?",
+        "should_abstain": true,
+        "did_abstain": true,
+        "evidence_sufficiency": "NO_EVIDENCE",
+        "is_correct": true,
+        "total_results": 5,
+        "graph_evidence_count": 0,
+        "top_result": "delete_account_endpoint (api/routes.py) score=0.7174"
+      },
+      {
+        "query_id": "ABSTAIN_26_ENDPOINT_BATCH_PERMISSIONS",
+        "repo_name": "synthetic_auth_repo",
+        "category": "nonexistent_endpoint",
+        "query": "Where is the handler for PUT /api/v1/users/permissions/batch declared?",
+        "should_abstain": true,
+        "did_abstain": true,
+        "evidence_sufficiency": "NO_EVIDENCE",
+        "is_correct": true,
+        "total_results": 2,
+        "graph_evidence_count": 0,
+        "top_result": "login_endpoint (api/routes.py) score=-6.579558829938054"
+      },
+      {
+        "query_id": "ABSTAIN_27_ENDPOINT_TELEHEALTH",
+        "repo_name": "real_world_petclinic_subset",
+        "category": "nonexistent_endpoint",
+        "query": "Where is the POST /owners/{ownerId}/pets/telehealth route configured in PetClinic?",
+        "should_abstain": true,
+        "did_abstain": true,
+        "evidence_sufficiency": "NO_EVIDENCE",
+        "is_correct": true,
+        "total_results": 5,
+        "graph_evidence_count": 0,
+        "top_result": "processCreationForm (src/main/java/org/springframework/samples/petclinic/owner/PetController.java) score=-2.438212043514166"
+      },
+      {
+        "query_id": "ABSTAIN_28_ENDPOINT_REVOKE_BY_IP",
+        "repo_name": "synthetic_ts_express_repo",
+        "category": "nonexistent_endpoint",
+        "query": "Show the implementation of DELETE /api/v1/auth/tokens/revoke_by_ip.",
+        "should_abstain": true,
+        "did_abstain": true,
+        "evidence_sufficiency": "NO_EVIDENCE",
+        "is_correct": true,
+        "total_results": 5,
+        "graph_evidence_count": 0,
+        "top_result": "registerRoutes (src/routes/api.routes.ts) score=0.6778"
+      },
+      {
+        "query_id": "ABSTAIN_29_METHOD_DELETE_LOGIN",
+        "repo_name": "synthetic_auth_repo",
+        "category": "incorrect_http_method",
+        "query": "What does DELETE /api/v1/auth/login return in the auth service?",
+        "should_abstain": true,
+        "did_abstain": true,
+        "evidence_sufficiency": "NO_EVIDENCE",
+        "is_correct": true,
+        "total_results": 5,
+        "graph_evidence_count": 0,
+        "top_result": "authenticate_user (services/auth_service.py) score=0.719"
+      },
+      {
+        "query_id": "ABSTAIN_30_METHOD_DELETE_PET_NEW",
+        "repo_name": "real_world_petclinic_subset",
+        "category": "incorrect_http_method",
+        "query": "Show the handler for DELETE /owners/{ownerId}/pets/new in PetClinic.",
+        "should_abstain": true,
+        "did_abstain": true,
+        "evidence_sufficiency": "NO_EVIDENCE",
+        "is_correct": true,
+        "total_results": 5,
+        "graph_evidence_count": 0,
+        "top_result": "Owner (src/main/java/org/springframework/samples/petclinic/owner/Owner.java) score=-4.26010993728043"
+      },
+      {
+        "query_id": "ABSTAIN_31_METHOD_PUT_HTTP_STREAM",
+        "repo_name": "real_world_ky_subset",
+        "category": "incorrect_http_method",
+        "query": "Where is the PUT /api/v1/request/stream endpoint in Ky handled?",
+        "should_abstain": true,
+        "did_abstain": true,
+        "evidence_sufficiency": "NO_EVIDENCE",
+        "is_correct": true,
+        "total_results": 4,
+        "graph_evidence_count": 0,
+        "top_result": "createRequest (source/index.ts) score=-5.631634971307088"
+      },
+      {
+        "query_id": "ABSTAIN_32_PREFIX_EXPORT_GDPR",
+        "repo_name": "synthetic_auth_repo",
+        "category": "similar_endpoint_prefix",
+        "query": "Where is the GET /api/v1/users/export_csv_gdpr endpoint defined?",
+        "should_abstain": true,
+        "did_abstain": true,
+        "evidence_sufficiency": "NO_EVIDENCE",
+        "is_correct": true,
+        "total_results": 5,
+        "graph_evidence_count": 0,
+        "top_result": "get_db_session (database/session.py) score=-3.5799434564780297"
+      },
+      {
+        "query_id": "ABSTAIN_33_PREFIX_MFA_TOTP",
+        "repo_name": "synthetic_ts_express_repo",
+        "category": "similar_endpoint_prefix",
+        "query": "Where is the POST /api/v1/auth/mfa/totp_setup endpoint declared?",
+        "should_abstain": true,
+        "did_abstain": true,
+        "evidence_sufficiency": "NO_EVIDENCE",
+        "is_correct": true,
+        "total_results": 5,
+        "graph_evidence_count": 0,
+        "top_result": "login (src/controllers/auth.controller.ts) score=0.6956"
+      },
+      {
+        "query_id": "ABSTAIN_34_PREFIX_PET_VACCINATION",
+        "repo_name": "real_world_petclinic_subset",
+        "category": "similar_endpoint_prefix",
+        "query": "Find the definition for GET /owners/{ownerId}/pets/vaccinations/history.",
+        "should_abstain": true,
+        "did_abstain": true,
+        "evidence_sufficiency": "NO_EVIDENCE",
+        "is_correct": true,
+        "total_results": 5,
+        "graph_evidence_count": 0,
+        "top_result": "findOwner (src/main/java/org/springframework/samples/petclinic/owner/PetController.java) score=-4.627553864433503"
+      },
+      {
+        "query_id": "ABSTAIN_35_DB_DYNAMODB_SESSIONS",
+        "repo_name": "synthetic_auth_repo",
+        "category": "unsupported_database",
+        "query": "Where is the Amazon DynamoDB table schema defined for user session state?",
+        "should_abstain": true,
+        "did_abstain": true,
+        "evidence_sufficiency": "NO_EVIDENCE",
+        "is_correct": true,
+        "total_results": 5,
+        "graph_evidence_count": 0,
+        "top_result": "get_db_session (database/session.py) score=-2.9513241966775126"
+      },
+      {
+        "query_id": "ABSTAIN_36_DB_CLICKHOUSE_ANALYTICS",
+        "repo_name": "synthetic_ts_express_repo",
+        "category": "unsupported_database",
+        "query": "How is the ClickHouse column-oriented analytics cluster connected?",
+        "should_abstain": true,
+        "did_abstain": true,
+        "evidence_sufficiency": "NO_EVIDENCE",
+        "is_correct": true,
+        "total_results": 5,
+        "graph_evidence_count": 0,
+        "top_result": "registerRoutes (src/routes/api.routes.ts) score=0.4878"
+      },
+      {
+        "query_id": "ABSTAIN_37_DB_COUCHBASE_BUCKET",
+        "repo_name": "real_world_petclinic_subset",
+        "category": "unsupported_database",
+        "query": "Where is Couchbase document bucket replication initialized in PetClinic?",
+        "should_abstain": true,
+        "did_abstain": true,
+        "evidence_sufficiency": "NO_EVIDENCE",
+        "is_correct": true,
+        "total_results": 5,
+        "graph_evidence_count": 0,
+        "top_result": "getId (src/main/java/org/springframework/samples/petclinic/model/BaseEntity.java) score=-3.414925373134329e-06"
+      },
+      {
+        "query_id": "ABSTAIN_38_FW_RAILS_MIGRATIONS",
+        "repo_name": "synthetic_auth_repo",
+        "category": "unsupported_framework",
+        "query": "Where are the Ruby on Rails ActiveRecord schema migrations stored?",
+        "should_abstain": true,
+        "did_abstain": true,
+        "evidence_sufficiency": "INSUFFICIENT",
+        "is_correct": true,
+        "total_results": 5,
+        "graph_evidence_count": 0,
+        "top_result": "BaseEntity (models/user.py) score=0.654"
+      },
+      {
+        "query_id": "ABSTAIN_39_FW_DJANGO_MULTI_TENANT",
+        "repo_name": "real_world_flask_subset",
+        "category": "unsupported_framework",
+        "query": "How does the Django ORM handle multi-tenant database routing?",
+        "should_abstain": true,
+        "did_abstain": true,
+        "evidence_sufficiency": "NO_EVIDENCE",
+        "is_correct": true,
+        "total_results": 0,
+        "graph_evidence_count": 0,
+        "top_result": "None"
+      },
+      {
+        "query_id": "ABSTAIN_40_FW_NESTJS_MODULE",
+        "repo_name": "synthetic_ts_express_repo",
+        "category": "unsupported_framework",
+        "query": "Where is the NestJS @Module dependency injection container defined?",
+        "should_abstain": true,
+        "did_abstain": true,
+        "evidence_sufficiency": "INSUFFICIENT",
+        "is_correct": true,
+        "total_results": 5,
+        "graph_evidence_count": 0,
+        "top_result": "constructor (src/controllers/auth.controller.ts) score=0.6572"
+      },
+      {
+        "query_id": "ABSTAIN_41_CLASS_FAILOVER_COORDINATOR",
+        "repo_name": "synthetic_auth_repo",
+        "category": "nonexistent_class",
+        "query": "Find the definition of MultiRegionFailoverCoordinator in the auth repo.",
+        "should_abstain": true,
+        "did_abstain": true,
+        "evidence_sufficiency": "NO_EVIDENCE",
+        "is_correct": true,
+        "total_results": 5,
+        "graph_evidence_count": 0,
+        "top_result": "test_authenticate_success (tests/test_auth.py) score=-1.2723918657693813"
+      },
+      {
+        "query_id": "ABSTAIN_42_CLASS_HSM_SIGNER",
+        "repo_name": "real_world_flask_subset",
+        "category": "nonexistent_class",
+        "query": "Where is the HardwareSecurityModuleSigner class declared?",
+        "should_abstain": true,
+        "did_abstain": true,
+        "evidence_sufficiency": "NO_EVIDENCE",
+        "is_correct": true,
+        "total_results": 5,
+        "graph_evidence_count": 0,
+        "top_result": "Scaffold (src/flask/scaffold.py) score=-4.710611789490138"
+      },
+      {
+        "query_id": "ABSTAIN_43_CLASS_GENOMIC_SEQUENCER",
+        "repo_name": "real_world_petclinic_subset",
+        "category": "nonexistent_class",
+        "query": "Find the definition of the PetGenomicSequencingService class.",
+        "should_abstain": true,
+        "did_abstain": true,
+        "evidence_sufficiency": "NO_EVIDENCE",
+        "is_correct": true,
+        "total_results": 5,
+        "graph_evidence_count": 0,
+        "top_result": "BaseEntity (src/main/java/org/springframework/samples/petclinic/model/BaseEntity.java) score=-6.247754244155629"
+      },
+      {
+        "query_id": "ABSTAIN_44_METHOD_EVICT_DORMANT",
+        "repo_name": "synthetic_auth_repo",
+        "category": "nonexistent_method",
+        "query": "Where is the evict_dormant_users_after_inactivity method implemented?",
+        "should_abstain": true,
+        "did_abstain": true,
+        "evidence_sufficiency": "NO_EVIDENCE",
+        "is_correct": true,
+        "total_results": 5,
+        "graph_evidence_count": 0,
+        "top_result": "connect (database/session.py) score=-3.6511627906976746e-06"
+      },
+      {
+        "query_id": "ABSTAIN_45_METHOD_STREAM_RAW_CHUNKS",
+        "repo_name": "real_world_ky_subset",
+        "category": "nonexistent_method",
+        "query": "Who calls HTTPError.streamRawBinaryChunks in Ky?",
+        "should_abstain": true,
+        "did_abstain": true,
+        "evidence_sufficiency": "NO_EVIDENCE",
+        "is_correct": true,
+        "total_results": 5,
+        "graph_evidence_count": 0,
+        "top_result": "HTTPError (source/errors/HTTPError.ts) score=-3.852765262178705"
+      },
+      {
+        "query_id": "ABSTAIN_46_CONFIG_JWT_PASSPHRASE",
+        "repo_name": "synthetic_auth_repo",
+        "category": "nonexistent_config",
+        "query": "Where is the JWT_ECDSA_PRIVATE_KEY_PASSPHRASE configuration key defined?",
+        "should_abstain": true,
+        "did_abstain": true,
+        "evidence_sufficiency": "NO_EVIDENCE",
+        "is_correct": true,
+        "total_results": 1,
+        "graph_evidence_count": 0,
+        "top_result": "delete_account_endpoint (api/routes.py) score=-2.6579706227011317"
+      },
+      {
+        "query_id": "ABSTAIN_47_CONFIG_FLASK_ENTROPY",
+        "repo_name": "real_world_flask_subset",
+        "category": "nonexistent_config",
+        "query": "Where is the FLASK_QUANTUM_ENTROPY_POOL configuration setting configured?",
+        "should_abstain": true,
+        "did_abstain": true,
+        "evidence_sufficiency": "NO_EVIDENCE",
+        "is_correct": true,
+        "total_results": 5,
+        "graph_evidence_count": 0,
+        "top_result": "Config (src/flask/config.py) score=-4.523173338291095"
+      },
+      {
+        "query_id": "ABSTAIN_48_DOMAIN_SUPERSONIC_CRUISE",
+        "repo_name": "real_world_ky_subset",
+        "category": "unrelated_domain",
+        "query": "What is the optimal aerodynamic wing sweep angle for supersonic cruise?",
+        "should_abstain": true,
+        "did_abstain": true,
+        "evidence_sufficiency": "NO_EVIDENCE",
+        "is_correct": true,
+        "total_results": 5,
+        "graph_evidence_count": 0,
+        "top_result": "normalizeRetryOptions (source/utils/normalize.ts) score=0.5707"
+      },
+      {
+        "query_id": "CONTROL_17_AUTH_SESSION_CONNECT",
+        "repo_name": "synthetic_auth_repo",
+        "category": "control_answerable",
+        "query": "How does SessionManager connect to the database in session.py?",
+        "should_abstain": false,
+        "did_abstain": false,
+        "evidence_sufficiency": "SUFFICIENT",
+        "is_correct": true,
+        "total_results": 5,
+        "graph_evidence_count": 0,
+        "top_result": "get_db_session (database/session.py) score=0.856"
+      },
+      {
+        "query_id": "CONTROL_18_AUTH_USER_MODEL",
+        "repo_name": "synthetic_auth_repo",
+        "category": "control_answerable",
+        "query": "Where is the User domain entity declared in models/user.py?",
+        "should_abstain": false,
+        "did_abstain": false,
+        "evidence_sufficiency": "SUFFICIENT",
+        "is_correct": true,
+        "total_results": 5,
+        "graph_evidence_count": 0,
+        "top_result": "get_user_by_username (services/auth_service.py) score=-1.4107159558151985"
+      },
+      {
+        "query_id": "CONTROL_19_FLASK_WSGI_APP",
+        "repo_name": "real_world_flask_subset",
+        "category": "control_answerable",
+        "query": "What does Flask.wsgi_app do when processing an incoming WSGI request?",
+        "should_abstain": false,
+        "did_abstain": true,
+        "evidence_sufficiency": "NO_EVIDENCE",
+        "is_correct": false,
+        "total_results": 0,
+        "graph_evidence_count": 0,
+        "top_result": "None"
+      },
+      {
+        "query_id": "CONTROL_20_FLASK_SCAFFOLD_ROUTE",
+        "repo_name": "real_world_flask_subset",
+        "category": "control_answerable",
+        "query": "How does the route decorator in Scaffold register view endpoints?",
+        "should_abstain": false,
+        "did_abstain": true,
+        "evidence_sufficiency": "NO_EVIDENCE",
+        "is_correct": false,
+        "total_results": 0,
+        "graph_evidence_count": 0,
+        "top_result": "None"
+      },
+      {
+        "query_id": "CONTROL_21_TS_TOKEN_VERIFY",
+        "repo_name": "synthetic_ts_express_repo",
+        "category": "control_answerable",
+        "query": "Where is the verifyJwtToken method defined in TokenService?",
+        "should_abstain": false,
+        "did_abstain": false,
+        "evidence_sufficiency": "SUFFICIENT",
+        "is_correct": true,
+        "total_results": 5,
+        "graph_evidence_count": 0,
+        "top_result": "verifyJwtToken (src/services/jwt.service.ts) score=-2.9710965757733394"
+      },
+      {
+        "query_id": "CONTROL_22_KY_NORMALIZE",
+        "repo_name": "real_world_ky_subset",
+        "category": "control_answerable",
+        "query": "How does normalize.ts validate and normalize HTTP request options?",
+        "should_abstain": false,
+        "did_abstain": false,
+        "evidence_sufficiency": "SUFFICIENT",
+        "is_correct": true,
+        "total_results": 5,
+        "graph_evidence_count": 0,
+        "top_result": "normalizeRequestMethod (source/utils/normalize.ts) score=0.7845"
+      },
+      {
+        "query_id": "CONTROL_23_PETCLINIC_BASE_ENTITY",
+        "repo_name": "real_world_petclinic_subset",
+        "category": "control_answerable",
+        "query": "Which fields does BaseEntity declare in PetClinic?",
+        "should_abstain": false,
+        "did_abstain": false,
+        "evidence_sufficiency": "SUFFICIENT",
+        "is_correct": true,
+        "total_results": 5,
+        "graph_evidence_count": 0,
+        "top_result": "getId (src/main/java/org/springframework/samples/petclinic/model/BaseEntity.java) score=0.7497"
+      },
+      {
+        "query_id": "CONTROL_24_PETCLINIC_PET_CONTROLLER_NEW",
+        "repo_name": "real_world_petclinic_subset",
+        "category": "control_answerable",
+        "query": "Where is the GET /owners/{ownerId}/pets/new endpoint handled in PetController?",
+        "should_abstain": false,
+        "did_abstain": false,
+        "evidence_sufficiency": "SUFFICIENT",
+        "is_correct": true,
+        "total_results": 5,
+        "graph_evidence_count": 0,
+        "top_result": "findOwner (src/main/java/org/springframework/samples/petclinic/owner/PetController.java) score=-3.6672154013214855"
       }
     ]
   },
@@ -1532,172 +2015,172 @@
       "gpu_detected": "NVIDIA GeForce RTX 4050 Laptop GPU (6 GB VRAM)",
       "python_version": "3.11.9"
     },
-    "total_indexing_duration_ms": 2205.69,
+    "total_indexing_duration_ms": 2219.4,
     "stages": {
       "dataset_provisioning": {
-        "duration_ms": 15.64,
+        "duration_ms": 18.12,
         "memory_delta_mb": 0.0,
         "rss_memory_mb": 0.0
       },
       "synthetic_auth_repo_treesitter_parsing": {
-        "duration_ms": 3.27,
+        "duration_ms": 3.04,
         "memory_delta_mb": 0.0,
         "rss_memory_mb": 0.0
       },
       "synthetic_auth_repo_chunk_generation": {
-        "duration_ms": 0.12,
+        "duration_ms": 0.13,
         "memory_delta_mb": 0.0,
         "rss_memory_mb": 0.0
       },
       "synthetic_auth_repo_chromadb_indexing": {
-        "duration_ms": 546.9,
+        "duration_ms": 526.62,
         "memory_delta_mb": 0.0,
         "rss_memory_mb": 0.0
       },
       "synthetic_auth_repo_sqlite_fts5_indexing": {
-        "duration_ms": 24.14,
+        "duration_ms": 12.93,
         "memory_delta_mb": 0.0,
         "rss_memory_mb": 0.0
       },
       "synthetic_auth_repo_knowledge_graph_construction": {
-        "duration_ms": 8.58,
+        "duration_ms": 6.2,
         "memory_delta_mb": 0.0,
         "rss_memory_mb": 0.0
       },
       "real_world_flask_subset_treesitter_parsing": {
-        "duration_ms": 5.41,
+        "duration_ms": 3.17,
         "memory_delta_mb": 0.0,
         "rss_memory_mb": 0.0
       },
       "real_world_flask_subset_chunk_generation": {
-        "duration_ms": 0.2,
+        "duration_ms": 0.11,
         "memory_delta_mb": 0.0,
         "rss_memory_mb": 0.0
       },
       "real_world_flask_subset_chromadb_indexing": {
-        "duration_ms": 371.14,
+        "duration_ms": 353.25,
         "memory_delta_mb": 0.0,
         "rss_memory_mb": 0.0
       },
       "real_world_flask_subset_sqlite_fts5_indexing": {
-        "duration_ms": 15.12,
+        "duration_ms": 16.25,
         "memory_delta_mb": 0.0,
         "rss_memory_mb": 0.0
       },
       "real_world_flask_subset_knowledge_graph_construction": {
-        "duration_ms": 6.09,
+        "duration_ms": 5.42,
         "memory_delta_mb": 0.0,
         "rss_memory_mb": 0.0
       },
       "synthetic_ts_express_repo_treesitter_parsing": {
-        "duration_ms": 3.65,
+        "duration_ms": 2.28,
         "memory_delta_mb": 0.0,
         "rss_memory_mb": 0.0
       },
       "synthetic_ts_express_repo_chunk_generation": {
-        "duration_ms": 0.15,
+        "duration_ms": 0.09,
         "memory_delta_mb": 0.0,
         "rss_memory_mb": 0.0
       },
       "synthetic_ts_express_repo_chromadb_indexing": {
-        "duration_ms": 101.01,
+        "duration_ms": 101.09,
         "memory_delta_mb": 0.0,
         "rss_memory_mb": 0.0
       },
       "synthetic_ts_express_repo_sqlite_fts5_indexing": {
-        "duration_ms": 14.84,
+        "duration_ms": 13.36,
         "memory_delta_mb": 0.0,
         "rss_memory_mb": 0.0
       },
       "synthetic_ts_express_repo_knowledge_graph_construction": {
-        "duration_ms": 4.67,
+        "duration_ms": 3.83,
         "memory_delta_mb": 0.0,
         "rss_memory_mb": 0.0
       },
       "real_world_ky_subset_treesitter_parsing": {
-        "duration_ms": 8.83,
+        "duration_ms": 7.84,
         "memory_delta_mb": 0.0,
         "rss_memory_mb": 0.0
       },
       "real_world_ky_subset_chunk_generation": {
-        "duration_ms": 0.15,
+        "duration_ms": 0.11,
         "memory_delta_mb": 0.0,
         "rss_memory_mb": 0.0
       },
       "real_world_ky_subset_chromadb_indexing": {
-        "duration_ms": 226.74,
+        "duration_ms": 252.86,
         "memory_delta_mb": 0.0,
         "rss_memory_mb": 0.0
       },
       "real_world_ky_subset_sqlite_fts5_indexing": {
-        "duration_ms": 15.47,
+        "duration_ms": 16.68,
         "memory_delta_mb": 0.0,
         "rss_memory_mb": 0.0
       },
       "real_world_ky_subset_knowledge_graph_construction": {
-        "duration_ms": 6.87,
+        "duration_ms": 7.29,
         "memory_delta_mb": 0.0,
         "rss_memory_mb": 0.0
       },
       "synthetic_java_petclinic_repo_treesitter_parsing": {
-        "duration_ms": 3.93,
+        "duration_ms": 4.25,
         "memory_delta_mb": 0.0,
         "rss_memory_mb": 0.0
       },
       "synthetic_java_petclinic_repo_chunk_generation": {
-        "duration_ms": 0.16,
+        "duration_ms": 0.17,
         "memory_delta_mb": 0.0,
         "rss_memory_mb": 0.0
       },
       "synthetic_java_petclinic_repo_chromadb_indexing": {
-        "duration_ms": 159.96,
+        "duration_ms": 173.39,
         "memory_delta_mb": 0.0,
         "rss_memory_mb": 0.0
       },
       "synthetic_java_petclinic_repo_sqlite_fts5_indexing": {
-        "duration_ms": 14.94,
+        "duration_ms": 13.29,
         "memory_delta_mb": 0.0,
         "rss_memory_mb": 0.0
       },
       "synthetic_java_petclinic_repo_knowledge_graph_construction": {
-        "duration_ms": 5.62,
+        "duration_ms": 5.67,
         "memory_delta_mb": 0.0,
         "rss_memory_mb": 0.0
       },
       "real_world_petclinic_subset_treesitter_parsing": {
-        "duration_ms": 12.22,
+        "duration_ms": 9.51,
         "memory_delta_mb": 0.0,
         "rss_memory_mb": 0.0
       },
       "real_world_petclinic_subset_chunk_generation": {
-        "duration_ms": 0.54,
+        "duration_ms": 0.59,
         "memory_delta_mb": 0.0,
         "rss_memory_mb": 0.0
       },
       "real_world_petclinic_subset_chromadb_indexing": {
-        "duration_ms": 601.74,
+        "duration_ms": 637.32,
         "memory_delta_mb": 0.0,
         "rss_memory_mb": 0.0
       },
       "real_world_petclinic_subset_sqlite_fts5_indexing": {
-        "duration_ms": 17.01,
+        "duration_ms": 13.56,
         "memory_delta_mb": 0.0,
         "rss_memory_mb": 0.0
       },
       "real_world_petclinic_subset_knowledge_graph_construction": {
-        "duration_ms": 10.58,
+        "duration_ms": 10.98,
         "memory_delta_mb": 0.0,
         "rss_memory_mb": 0.0
       }
     },
     "query_performance": {
       "total_queries_profiled": 222,
-      "cold_start_mean_ms": 16.27,
-      "warm_start_mean_ms": 6.43,
-      "overall_mean_ms": 6.69,
-      "p50_latency_ms": 5.09,
-      "p95_latency_ms": 14.15,
-      "p99_latency_ms": 17.16
+      "cold_start_mean_ms": 18.72,
+      "warm_start_mean_ms": 6.65,
+      "overall_mean_ms": 6.97,
+      "p50_latency_ms": 5.31,
+      "p95_latency_ms": 14.49,
+      "p99_latency_ms": 16.84
     },
     "current_process_rss_mb": 0.0
   }

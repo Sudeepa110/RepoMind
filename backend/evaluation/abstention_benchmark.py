@@ -142,31 +142,63 @@ class AbstentionBenchmarkRunner:
         total_oos = len(out_of_scope_queries)
         total_ans = len(answerable_queries)
 
-        abstention_precision = (
-            true_abstentions / (true_abstentions + false_abstentions)
-            if (true_abstentions + false_abstentions) > 0
-            else 0.0
-        )
-        abstention_recall = (
-            true_abstentions / (true_abstentions + false_answers)
-            if (true_abstentions + false_answers) > 0
-            else 0.0
-        )
-        false_answer_rate = (
-            false_answers / total_oos
-            if total_oos > 0
-            else 0.0
-        )
-        false_abstention_rate = (
-            false_abstentions / total_ans
-            if total_ans > 0
-            else 0.0
-        )
-        overall_accuracy = (
-            (true_abstentions + true_answers) / total_queries
-            if total_queries > 0
-            else 0.0
-        )
+        # Confusion Matrix formulation:
+        # Positive class = Out-of-Scope (system SHOULD abstain)
+        # Negative class = Answerable (system SHOULD NOT abstain)
+        tp = true_abstentions      # True Positive: Out-of-scope correctly abstained
+        fn = false_answers         # False Negative: Out-of-scope incorrectly answered
+        tn = true_answers          # True Negative: Answerable correctly answered
+        fp = false_abstentions     # False Positive: Answerable incorrectly abstained
+
+        confusion_matrix = {
+            "true_positives_abstained": tp,
+            "false_negatives_answered": fn,
+            "true_negatives_answered": tn,
+            "false_positives_abstained": fp,
+        }
+
+        abstention_precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+        abstention_recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+        specificity = tn / (tn + fp) if (tn + fp) > 0 else 0.0
+        balanced_accuracy = (abstention_recall + specificity) / 2.0 if (total_oos > 0 and total_ans > 0) else 0.0
+        false_answer_rate = fn / total_oos if total_oos > 0 else 0.0
+        false_refusal_rate = fp / total_ans if total_ans > 0 else 0.0
+        overall_accuracy = (tp + tn) / total_queries if total_queries > 0 else 0.0
+
+        # Endpoint-specific metrics breakdown (Phase 9.4)
+        endpoint_categories = {"nonexistent_endpoint", "incorrect_http_method", "similar_endpoint_prefix"}
+        endpoint_records = [r for r in detailed_records if r["category"] in endpoint_categories]
+        endpoint_oos = [r for r in endpoint_records if r["should_abstain"]]
+        endpoint_tp = sum(1 for r in endpoint_oos if r["did_abstain"])
+        endpoint_fn = sum(1 for r in endpoint_oos if not r["did_abstain"])
+        endpoint_ans = [r for r in endpoint_records if not r["should_abstain"]]
+        endpoint_tn = sum(1 for r in endpoint_ans if not r["did_abstain"])
+        endpoint_fp = sum(1 for r in endpoint_ans if r["did_abstain"])
+
+        endpoint_metrics = {
+            "total_endpoint_queries": len(endpoint_records),
+            "out_of_scope_endpoint_count": len(endpoint_oos),
+            "true_abstentions": endpoint_tp,
+            "false_answers": endpoint_fn,
+            "abstention_precision": round(endpoint_tp / (endpoint_tp + endpoint_fp), 4) if (endpoint_tp + endpoint_fp) > 0 else 1.0,
+            "abstention_recall": round(endpoint_tp / (endpoint_tp + endpoint_fn), 4) if (endpoint_tp + endpoint_fn) > 0 else 0.0,
+            "false_answer_rate": round(endpoint_fn / len(endpoint_oos), 4) if endpoint_oos else 0.0,
+        }
+
+        # General out-of-scope metrics (non-endpoint)
+        general_records = [r for r in detailed_records if r["category"] not in endpoint_categories]
+        general_oos = [r for r in general_records if r["should_abstain"]]
+        general_tp = sum(1 for r in general_oos if r["did_abstain"])
+        general_fn = sum(1 for r in general_oos if not r["did_abstain"])
+
+        general_metrics = {
+            "total_general_queries": len(general_records),
+            "out_of_scope_general_count": len(general_oos),
+            "true_abstentions": general_tp,
+            "false_answers": general_fn,
+            "abstention_recall": round(general_tp / (general_tp + general_fn), 4) if (general_tp + general_fn) > 0 else 0.0,
+            "false_answer_rate": round(general_fn / len(general_oos), 4) if general_oos else 0.0,
+        }
 
         category_summaries = {}
         for cat, counts in category_results.items():
@@ -188,12 +220,17 @@ class AbstentionBenchmarkRunner:
                 "false_answers": false_answers,
                 "true_answers": true_answers,
                 "false_abstentions": false_abstentions,
+                "confusion_matrix": confusion_matrix,
                 "abstention_precision": round(abstention_precision, 4),
                 "abstention_recall": round(abstention_recall, 4),
+                "specificity": round(specificity, 4),
+                "balanced_accuracy": round(balanced_accuracy, 4),
                 "false_answer_rate": round(false_answer_rate, 4),
-                "false_abstention_rate": round(false_abstention_rate, 4),
+                "false_refusal_rate": round(false_refusal_rate, 4),
                 "overall_accuracy": round(overall_accuracy, 4),
             },
+            "endpoint_breakdown": endpoint_metrics,
+            "general_oos_breakdown": general_metrics,
             "evidence_sufficiency_distribution": {
                 k: {
                     "count": v,
@@ -207,3 +244,4 @@ class AbstentionBenchmarkRunner:
 
 
 abstention_benchmark_runner = AbstentionBenchmarkRunner()
+

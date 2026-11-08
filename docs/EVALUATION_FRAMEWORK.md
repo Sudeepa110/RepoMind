@@ -148,12 +148,38 @@ The framework strictly separates citation validity from citation coverage:
 3. **Unsupported Claim Rate**:
    $$\text{Unsupported Claim Rate} = 1.0 - \text{Citation Validity}$$
 
-### 4.2 Honest Abstention Verification
+### 4.2 Honest Abstention & Exact Endpoint Validation (Phase 9.4)
 
-RepoMind must honestly refuse to answer queries for which the repository lacks evidence.
-- An abstention is recorded if the system returns `evidence_sufficiency = "NO_EVIDENCE"` or explicitly states that evidence was not found in the indexed repository.
-- Evaluated on unindexed domain queries (e.g., *Quantum cryptography protocols*, *Docker container orchestration* in an auth repo).
-- **Abstention Accuracy**: \(\frac{\text{Correct Abstentions}}{\text{Total Out-of-Scope Queries}}\).
+RepoMind must honestly refuse to answer queries for which the repository lacks evidence, while preserving answers for all genuine repository inquiries.
+
+#### 4.2.1 Confusion Matrix Formulation
+The abstention benchmark models Out-of-Scope queries as the positive condition and Answerable queries as the negative condition:
+- **True Positive (\(\text{TP}\))**: Out-of-scope query correctly refused.
+- **False Negative (\(\text{FN}\))**: Out-of-scope query incorrectly answered (hallucination risk).
+- **True Negative (\(\text{TN}\))**: Answerable query correctly answered.
+- **False Positive (\(\text{FP}\))**: Answerable query incorrectly refused (false refusal).
+
+#### 4.2.2 Balanced Accuracy & Specificity
+$$\text{Recall (Abstention Recall)} = \frac{\text{TP}}{\text{TP} + \text{FN}}$$
+
+$$\text{Specificity} = \frac{\text{TN}}{\text{TN} + \text{FP}}$$
+
+$$\text{Balanced Accuracy} = \frac{\text{Recall} + \text{Specificity}}{2}$$
+
+$$\text{False-Answer Rate} = \frac{\text{FN}}{\text{TP} + \text{FN}} = 1.0 - \text{Recall}$$
+
+$$\text{False-Refusal Rate} = \frac{\text{FP}}{\text{TN} + \text{FP}} = 1.0 - \text{Specificity}$$
+
+#### 4.2.3 Structurally Justified Exact Endpoint Matching Engine
+To prevent route substring collisions where generic prefixes like `/api/` or `/users/` cause nonexistent endpoints (`DELETE /api/v2/users/crypto_wallet`) to pass as supported, Phase 9.4 introduces `EndpointMatcher` (`backend/app/retrieval/endpoint_matcher.py`):
+1. **Query Extraction**: Detects HTTP method (GET, POST, PUT, DELETE, PATCH) and route paths with parameterized wildcards (`:id`, `<int:id>`, `{id}` \(\to\) `{param}`).
+2. **Framework Route Extraction**: Extracts declared routes across Python (Flask `@app.route`, `@bp.route`), TypeScript (Express `router.get/post/delete`, `app.use`), and Java (Spring Boot `@GetMapping`, `@PostMapping`, `@RequestMapping`).
+3. **Prefix Composition**: Combines class-level Spring `@RequestMapping` and Express `app.use` prefixes with method endpoints to form canonical mounted paths.
+4. **Structural Classification**:
+   - `EXACT_MATCH`: Path and HTTP method confirmed. Evidence: `SUFFICIENT`.
+   - `METHOD_MISMATCH`: Path exists, but HTTP method is unsupported (e.g., `DELETE /api/v1/auth/login`). Evidence: `INSUFFICIENT`.
+   - `PREFIX_ONLY`: Ancestor path matches, but target leaf segment is absent. Evidence: `NO_EVIDENCE`.
+   - `NOT_FOUND`: Target route absent from repository. Evidence: `NO_EVIDENCE`.
 
 ### 4.3 Adversarial Prompt Injection Defense
 

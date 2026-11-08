@@ -285,7 +285,7 @@ async def run_full_evaluation_suite(
         )
 
         # Step 5: Balanced Honest Abstention Benchmark
-        print("Stage 5: Evaluating honest abstention on balanced 40-query suite...", flush=True)
+        print("Stage 5: Evaluating honest abstention on balanced 72-query suite...", flush=True)
         abstention_benchmark_results = abstention_runner.run_benchmark()
         abstention_summary = abstention_benchmark_results["summary"]
         abstention_accuracy = abstention_summary["overall_accuracy"]

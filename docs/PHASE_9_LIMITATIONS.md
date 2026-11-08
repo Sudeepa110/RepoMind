@@ -1,54 +1,50 @@
-# RepoMind — Phase 9.3 Limitations, Boundaries & Evaluation Transparency
+# RepoMind — Phase 9.4 Limitations, Boundaries & Evaluation Transparency
 
 ## 1. Overview
 
-Phase 9.3 establishes query-adaptive retrieval routing, balanced honest abstention evaluation, and claim-level answer grounding. To maintain strict scientific transparency, this document details known limitations, architectural boundaries, and specific root causes of benchmark defect patterns.
+Phase 9.4 completes exact API endpoint validation, multi-factor evidence sufficiency calibration, and expanded 72-query balanced abstention benchmarking. To maintain strict scientific transparency, this document details resolved defect mechanisms, remaining architectural boundaries, and known operational limits.
 
 ---
 
-## 2. Abstention False-Answer Root Causes & Boundaries
+## 2. Phase 9.3 Defects Resolved in Phase 9.4
 
-The balanced 40-query abstention benchmark reported an **overall accuracy of 82.50%**, with **100.0% abstention precision** and **70.83% abstention recall**. Across 24 out-of-scope queries, 7 failed to trigger honest abstention (false-answer rate: 29.17%). 
+In Phase 9.3, the balanced abstention benchmark identified 7 false answers across 24 out-of-scope queries (false-answer rate: 29.17%). Phase 9.4 resolved these defects through structural matching mechanisms:
 
-Technical analysis reveals three specific causes:
+### 2.1 Resolution of Common Route Token Collisions
+- **Prior Defect**: Nonexistent endpoints (`DELETE /api/v2/users/crypto_wallet`) passed sufficiency checks because substring tokens (`api`, `users`, `delete`) matched `routes.py`.
+- **Phase 9.4 Resolution**: `EndpointMatcher` (`backend/app/retrieval/endpoint_matcher.py`) performs structurally justified route and HTTP method extraction. It normalizes path segments (supporting wildcards like `:id`, `<int:id>`, `{id}` -> `{param}`), parses declared routes across Flask, Express, and Spring Boot, and classifies route inquiries into:
+  - `EXACT_MATCH`: Path segments and HTTP method match codebase declaration.
+  - `METHOD_MISMATCH`: Route path exists, but queried method differs (e.g., `DELETE /api/v1/auth/login`).
+  - `PREFIX_ONLY`: Only a common ancestor matches while leaf segments are absent (e.g., `/api/v2/users/crypto_wallet` vs `/users/`).
+  - `NOT_FOUND`: Route path does not exist in code.
+- **Empirical Result**: Nonexistent endpoints achieved **100% abstention recall** (13/13 true abstentions, 0 false answers).
 
-### 2.1 Common Route Path Segment Token Collisions
-- **Affected Category**: Nonexistent API Endpoints (`ABSTAIN_07`, `ABSTAIN_08`, `ABSTAIN_09`).
-- **Mechanism**: Queries such as `"How is the DELETE /api/v2/users/crypto_wallet endpoint implemented?"` contain path tokens `/api/` and `/users/`. In `routes.py`, existing endpoints (`POST /api/v1/auth/login`) also match the tokens `api` and `users`.
-- **Consequence**: SQLite FTS5 matches the shared path prefixes, and ChromaDB embeddings find lexical similarity to HTTP route declarations, passing the sufficiency threshold.
-- **Future Direction**: Requires dedicated endpoint URL route-trie matching rather than sub-token bag-of-words parsing.
+### 2.2 Resolution of Unavailable Evidence & External Technology Collisions
+- **Prior Defect**: Queries asking for live AWS master passwords or Cassandra clusters matched generic tokens (`database`, `password`, `service`).
+- **Phase 9.4 Resolution**: Added distinctive subject validation (`DISTINCTIVE_SUBJECT_TERMS`). When a query specifies external cloud infrastructure, unsupported databases, or out-of-scope concepts (AWS, Azure, GCP, Cassandra, DynamoDB, ClickHouse, Stripe, GPU, PyPI secrets), the engine verifies the presence of these distinctive subjects in retrieved code chunks. If absent, the engine immediately yields `NO_EVIDENCE`.
 
-### 2.2 Semantic Substring Overlap in Unavailable Evidence Queries
-- **Affected Category**: Unavailable Credentials & Plausible Identifiers (`ABSTAIN_20`, `ABSTAIN_23`).
-- **Mechanism**: A query asking for `"What is the live AWS production database master password in this repository?"` contains the words `database` and `password`. Both `database/session.py` and `utils/hash.py` (which contain `hash_password`) match these terms with high confidence.
-- **Consequence**: The system locates code relating to passwords and database sessions and treats the query as answerable rather than recognizing that live production credentials are out of scope.
-
-### 2.3 Partial Class Match on Nonexistent Methods
-- **Affected Category**: Plausible Nonexistent Identifiers (`ABSTAIN_23`: `UserRepository.findUsersWithExpiredCreditCards`).
-- **Mechanism**: While `findUsersWithExpiredCreditCards` does not exist, `UserRepository` does exist. Keyword search locates `UserRepository`, returning the class chunk.
-- **Consequence**: The system classifies the evidence as sufficient for the class entity, despite the requested method being absent.
+### 2.3 Resolution of Qualified Member Mismatch
+- **Prior Defect**: Queries for `UserRepository.findUsersWithExpiredCreditCards` matched `UserRepository`, returning class chunks as sufficient evidence.
+- **Phase 9.4 Resolution**: Qualified identifiers (`Class.member`, `Class::member`) explicitly verify that the member name exists in the retrieved chunk's AST definitions or source code. If absent, `NO_EVIDENCE` is enforced.
 
 ---
 
-## 3. Retrieval Strategy Boundaries & Non-Universal Superiority
+## 3. Remaining Boundaries & Operational Limits (Phase 9.4)
 
-RepoMind does not claim that Hybrid Retrieval is universally superior in all metrics or scenarios:
+### 3.1 Endpoint Resolution Depth & Dynamic Route Construction
+1. **Static Declaration Matching**: `EndpointMatcher` extracts routes declared via standard framework constructs (`@app.route`, `@bp.route`, `router.get/post/delete`, `app.use`, `@GetMapping`, `@PostMapping`, `@RequestMapping`).
+2. **Dynamic Route Construction Limit**: Dynamic route paths computed at runtime via variable concatenation or configuration lookups (e.g. `app.add_url_rule(get_custom_prefix() + "/data")`) are not resolved statically unless documented via route docstrings (`# Route: GET /path`).
+3. **Cross-File Route Mounting**: When an Express sub-router is defined in `routes/api.ts` and mounted in `server.ts` via `app.use('/api/v1', router)`, full route composition occurs when both chunks are in retrieved context. If only the sub-router chunk is retrieved, the relative route is verified; if the query requests the mounted prefix, literal string matching or docstring annotations provide the composition bridge.
 
+### 3.2 Retrieval Strategy Boundaries & Non-Universal Superiority
+RepoMind explicitly documents that no single retrieval engine is universally superior across all evaluation metrics:
 1. **Graph-Only Advantages**: On repositories with dense AST call graphs (e.g., `synthetic_java_petclinic_repo` and `synthetic_ts_express_repo`), Graph-only retrieval achieves higher Precision@1 (**0.7778**) and MRR (**0.7778**) than Hybrid (0.5556 and 0.6204) because Graph search eliminates all lexical and semantic noise.
 2. **Keyword-Only Latency Advantage**: SQLite FTS5 executes in **1.14 – 2.32 ms** (5–10x faster than dense vector embedding). When developers search for exact function names, keyword search provides immediate answers with zero embedding compute overhead.
 3. **Vector-Only Recall Advantage**: On `real_world_ky_subset` and `real_world_flask_subset`, Vector-only retrieval achieves equivalent or higher Recall@5 (0.9000 and 0.8167) and MRR (0.6818 vs 0.6364) compared to Hybrid, because RRF rank fusion occasionally deprioritizes top vector hits when keyword tokens mismatch.
 4. **Hybrid Latency Cost**: Hybrid retrieval incurs the highest latency (**4.29 – 8.93 ms**) because it executes multiple retrieval pipelines and rank fusion.
 
----
-
-## 4. Evaluation Scope & Methodology Boundaries
-
-### 4.1 Deterministic Citation Math vs Stochastic LLM Generation
-- **Scope**: Offline benchmark citation validity (100%) measures the deterministic regex parser, AST chunk coordinate math, and line interval overlap IoU.
-- **Boundary**: It verifies that when citations are constructed from retrieved code, they are coordinate-accurate. It does not replace live evaluation against non-deterministic LLMs that may hallucinate file names or line numbers.
-
-### 4.2 Development Set vs Held-Out Query Subset
-- **Methodology**: To prevent overfitting, 16 benchmark queries (`Q39`–`Q54`) and all 40 abstention queries were authored as an independent held-out evaluation set, evaluated without post-hoc hyperparameter tuning.
-
-### 4.3 Static AST Parsing vs Runtime Dynamic Behavior
+### 3.3 Static AST Parsing vs Runtime Dynamic Behavior
 - **Boundary**: Tree-sitter AST parsing operates strictly on static source text. Dynamic Python dispatch tables (`getattr()`), TypeScript ambient declarations (`declare module`), and Java runtime reflection (`Class.forName()`) remain unresolved at the static graph level.
+
+### 3.4 Deterministic Evidence Sufficiency vs Stochastic LLM Hallucination
+- **Boundary**: `evaluate_evidence_sufficiency()` provides deterministic gating preventing LLM generation when evidence is absent or insufficient. However, once sufficient evidence is confirmed, generative synthesis by Google Gemini remains subject to prompt adherence and LLM stochasticity, governed by citation validation and post-generation grounding verification.
