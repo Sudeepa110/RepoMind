@@ -52,23 +52,28 @@ flowchart TD
    - Extracts retrieved file paths, symbol identifiers, line numbers, and timestamps.
    - Emits dual metric aliases (`precision_at_k` and `precision@k`) for client compatibility.
 3. **`backend/evaluation/citation_evaluator.py`**:
-   - Evaluates factual grounding by decoupling **Citation Validity** (citations referencing genuine verified lines in evidence) from **Claim-Level Citation Coverage** (proportion of factual sentences backed by citations).
-   - Evaluates **Honest Abstention** for out-of-scope or unindexed queries.
+   - Evaluates factual grounding by decoupling **Deterministic Citation Validity** (citations referencing genuine verified lines in evidence) from **Claim-Level Evidence Support** (proportion of factual sentences backed by validated citations).
+   - Evaluates **Claim-Level Grounded Answer Generation** via `evaluate_grounded_answer()`.
+   - Evaluates **Honest Abstention** and **Appropriate Use of Uncertainty** for partial evidence.
    - Evaluates **Adversarial Prompt-Injection Defense** against system prompt override payloads.
-4. **`backend/evaluation/intelligence_benchmark.py`**:
+4. **`backend/evaluation/abstention_benchmark.py`**:
+   - Executes balanced 40-query honest abstention evaluation across all 6 repositories.
+   - Measures Abstention Precision, Abstention Recall, False-Answer Rate, False-Abstention Rate, and Overall Accuracy across 8 defect categories and answerable controls.
+   - Evaluates 4-level evidence sufficiency distribution (`NO_EVIDENCE`, `INSUFFICIENT`, `PARTIAL`, `SUFFICIENT`).
+5. **`backend/evaluation/intelligence_benchmark.py`**:
    - Assesses Knowledge Graph construction precision and recall against verified AST ground truth.
    - Measures multi-file Change Impact Analysis precision, recall, false positive rate (FPR), and blast radius accuracy.
    - Evaluates Static Bug & Defect Investigation precision, recall, and F1 score against labeled vulnerabilities.
    - Assesses automated test recommendations and coverage completeness.
-5. **`backend/evaluation/profiler.py`**:
+6. **`backend/evaluation/profiler.py`**:
    - Instruments all 11 indexing and query pipeline stages using high-precision performance counters (`time.perf_counter()`).
    - Retrieves host process working set memory (RSS) using Win32 `GetProcessMemoryInfo` API via `ctypes`.
    - Tracks cold-start vs warm-start query latency, computing p50, p95, and p99 percentiles.
-6. **`backend/evaluation/benchmark_orchestrator.py`**:
+7. **`backend/evaluation/benchmark_orchestrator.py`**:
    - Coordinates end-to-end multi-repository evaluation runs.
-   - Provisions synthetic and real-world datasets, executes all 4 retrieval strategies across 25 queries (102 query runs total), evaluates grounding and intelligence, profiles hardware, and persists raw results to disk.
-7. **`backend/evaluation/datasets/dataset_loader.py`**:
-   - Provisions deterministic evaluation targets: `synthetic_auth_repo` (7 files, 22 chunks, 56 graph edges) and `real_world_flask_subset` (5 core files from `pallets/flask` at commit `e559fa7`).
+   - Provisions 6 multi-language datasets (3 real-world subsets, 3 synthetic fixtures), executes all 4 retrieval strategies across 54 queries, runs the 40-query balanced abstention suite, evaluates claim grounding and intelligence, profiles hardware, and persists raw results to disk.
+8. **`backend/evaluation/datasets/dataset_loader.py`**:
+   - Provisions deterministic evaluation targets across Python, TypeScript, and Java: `synthetic_auth_repo`, `real_world_flask_subset` (commit `e559fa7`), `synthetic_ts_express_repo`, `real_world_ky_subset` (commit `3541888`), `synthetic_java_petclinic_repo`, and `real_world_petclinic_subset` (commit `500158f`).
 
 ---
 

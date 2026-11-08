@@ -14,13 +14,15 @@ Coordinates the complete, reproducible Phase 9 evaluation suite:
 import os
 os.environ.setdefault("HF_HUB_OFFLINE", "1")
 os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 import asyncio
 import json
 import re
 import time
 import tempfile
 import logging
-from pathlib import Path
 from typing import Dict, Any, List
 
 from backend.app.processing.engine import CodeUnderstandingEngine
@@ -43,6 +45,8 @@ from backend.app.intelligence.bug_investigator import BugInvestigator
 from backend.app.intelligence.risk_assessor import RiskAssessor
 from backend.app.intelligence.test_recommender import TestRecommender
 from backend.app.intelligence.documentation_generator import TechnicalDocumentationGenerator
+from backend.app.llm.generation_service import GenerationService
+from backend.app.llm.generation_models import EvidenceSufficiency
 
 from backend.evaluation.datasets.dataset_loader import (
     load_benchmark_queries,
@@ -55,6 +59,7 @@ from backend.evaluation.datasets.dataset_loader import (
 )
 from backend.evaluation.retrieval_benchmark import RetrievalBenchmarkRunner
 from backend.evaluation.citation_evaluator import CitationAndGroundingEvaluator
+from backend.evaluation.abstention_benchmark import AbstentionBenchmarkRunner
 from backend.evaluation.intelligence_benchmark import IntelligenceBenchmarkRunner
 from backend.evaluation.profiler import SystemProfiler, get_current_process_memory_mb
 
@@ -121,6 +126,15 @@ async def run_full_evaluation_suite(
 
         citation_validator = CitationValidator()
         citation_evaluator_inst = CitationAndGroundingEvaluator(validator=citation_validator)
+        generation_service_inst = GenerationService(
+            retriever=hybrid_retriever_inst,
+            validator=citation_validator,
+        )
+        abstention_runner = AbstentionBenchmarkRunner(
+            retriever=hybrid_retriever_inst,
+            gen_service=generation_service_inst,
+            evaluator=citation_evaluator_inst,
+        )
         risk_assessor = RiskAssessor(store=graph_store)
         impact_analyzer = ChangeImpactAnalyzer(
             store=graph_store, assessor=risk_assessor, validator=citation_validator
@@ -221,9 +235,10 @@ async def run_full_evaluation_suite(
 
             retrieval_benchmarks[repo_id] = bench_res["summary"]
 
-        # Step 4: Citation Validity & Claim-Level Coverage Evaluation
-        print("Stage 4: Evaluating citations and claim coverage...", flush=True)
-        citation_eval_results = []
+        # Step 4: Citation Validity & Claim-Level Grounding Evaluation
+        print("Stage 4: Evaluating citations and claim-level grounding...", flush=True)
+        deterministic_citation_evals = []
+        grounded_answer_evals = []
         for q in [q for q in queries if not q.get("should_abstain")][:6]:
             h_res = hybrid_retriever_inst.hybrid_search(
                 repository_id=q["repo_name"],
@@ -236,58 +251,44 @@ async def run_full_evaluation_suite(
                     f"The symbol `{r.symbol_name}` is declared in [{r.file_path}:{r.start_line}-{r.end_line}]."
                 )
             generated_answer = " ".join(claims) if claims else "No relevant entities found."
-            eval_c = citation_evaluator_inst.evaluate_citations(
+
+            # 4a. Deterministic Citation Overlap Math
+            eval_det = citation_evaluator_inst.evaluate_citations(
                 generated_answer=generated_answer,
                 retrieved_chunks=h_res.results,
             )
-            eval_c["query_id"] = q["query_id"]
-            citation_eval_results.append(eval_c)
+            eval_det["query_id"] = q["query_id"]
+            deterministic_citation_evals.append(eval_det)
+
+            # 4b. Claim-Level Grounded Answer Evaluation
+            suff = generation_service_inst.evaluate_evidence_sufficiency(h_res)
+            eval_grounded = citation_evaluator_inst.evaluate_grounded_answer(
+                generated_answer=generated_answer,
+                retrieved_chunks=h_res.results,
+                evidence_sufficiency=suff.value,
+                should_abstain=False,
+            )
+            eval_grounded["query_id"] = q["query_id"]
+            grounded_answer_evals.append(eval_grounded)
 
         avg_citation_validity = (
-            sum(c["citation_validity"] for c in citation_eval_results) / len(citation_eval_results)
-            if citation_eval_results else 1.0
+            sum(c["citation_validity"] for c in deterministic_citation_evals) / len(deterministic_citation_evals)
+            if deterministic_citation_evals else 1.0
         )
         avg_citation_coverage = (
-            sum(c["citation_coverage"] for c in citation_eval_results) / len(citation_eval_results)
-            if citation_eval_results else 1.0
+            sum(c["citation_coverage"] for c in deterministic_citation_evals) / len(deterministic_citation_evals)
+            if deterministic_citation_evals else 1.0
+        )
+        avg_claim_support = (
+            sum(c["claim_support_rate"] for c in grounded_answer_evals) / len(grounded_answer_evals)
+            if grounded_answer_evals else 1.0
         )
 
-        # Step 5: Abstention & Anti-Hallucination Evaluation
-        print("Stage 5: Evaluating honest abstention...", flush=True)
-        abstain_queries = [q for q in queries if q.get("should_abstain")]
-        abstain_results = []
-        stop_words = {"how", "is", "the", "where", "for", "code", "a", "an", "in", "to", "what", "of", "and", "smart"}
-        for aq in abstain_queries:
-            h_res = hybrid_retriever_inst.hybrid_search(
-                repository_id=aq["repo_name"],
-                request=HybridSearchRequest(query=aq["query"], top_k=5),
-            )
-            query_keywords = {
-                w for w in re.findall(r"\w+", aq["query"].lower())
-                if len(w) > 3 and w not in stop_words
-            }
-            matched_code = " ".join(r.source_code.lower() for r in h_res.results)
-            has_domain_match = any(kw in matched_code for kw in query_keywords)
-
-            if not has_domain_match:
-                suff = "NO_EVIDENCE"
-                ans_text = "The indexed repository does not contain sufficient evidence to answer this question."
-            else:
-                suff = "SUFFICIENT"
-                ans_text = "Found matching code entities in repository."
-
-            ab_eval = citation_evaluator_inst.evaluate_abstention(
-                evidence_sufficiency=suff,
-                answer_text=ans_text,
-                should_abstain=True,
-            )
-            ab_eval["query_id"] = aq["query_id"]
-            abstain_results.append(ab_eval)
-
-        abstention_accuracy = (
-            sum(1 for a in abstain_results if a["correct_decision"]) / len(abstain_results)
-            if abstain_results else 1.0
-        )
+        # Step 5: Balanced Honest Abstention Benchmark
+        print("Stage 5: Evaluating honest abstention on balanced 40-query suite...", flush=True)
+        abstention_benchmark_results = abstention_runner.run_benchmark()
+        abstention_summary = abstention_benchmark_results["summary"]
+        abstention_accuracy = abstention_summary["overall_accuracy"]
 
         # Step 6: Adversarial Prompt Injection Defense Evaluation
         print("Stage 6: Evaluating prompt injection defenses...", flush=True)
@@ -361,19 +362,22 @@ async def run_full_evaluation_suite(
         full_results = {
             "metadata": {
                 "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                "phase": "Phase 9.2: Cross-Language Retrieval Validation & Final Quality Gate",
+                "phase": "Phase 9.3: Final Retrieval Routing, Abstention & Benchmark Reliability",
                 "hardware": perf_summary["hardware_environment"],
                 "total_queries_evaluated": len(queries),
+                "total_retrieval_queries_evaluated": len(queries),
+                "total_abstention_queries_evaluated": len(abstention_benchmark_results.get("detailed_records", [])),
             },
             "indexing_performance": indexing_stats,
             "retrieval_strategy_comparison": retrieval_benchmarks,
+            "balanced_abstention_benchmark": abstention_benchmark_results,
             "grounding_and_citations": {
-                "citation_validity": round(avg_citation_validity, 4),
-                "citation_coverage": round(avg_citation_coverage, 4),
-                "abstention_accuracy": round(abstention_accuracy, 4),
+                "deterministic_citation_validity": round(avg_citation_validity, 4),
+                "deterministic_citation_coverage": round(avg_citation_coverage, 4),
+                "claim_level_evidence_support": round(avg_claim_support, 4),
                 "injection_defense_success_rate": round(injection_defense_rate, 4),
-                "detailed_citation_evals": citation_eval_results,
-                "abstention_evals": abstain_results,
+                "deterministic_citation_evals": deterministic_citation_evals,
+                "grounded_answer_evals": grounded_answer_evals,
                 "injection_evals": injection_results,
             },
             "graph_and_intelligence": {

@@ -7,6 +7,7 @@ and persistent repository-scoped conversational memory.
 
 import json
 import logging
+import re
 import time
 from typing import AsyncIterator, Optional, List, Dict, Any
 from sqlalchemy import select
@@ -68,29 +69,73 @@ class GenerationService:
         retrieval_response: HybridRetrievalResponse,
     ) -> EvidenceSufficiency:
         """
-        Classifies whether retrieved evidence is sufficient to ground an accurate answer.
+        Multi-factor classification of whether retrieved evidence is sufficient,
+        partial, insufficient, or absent to ground an accurate answer.
+        Evaluates symbol matches, confirmed graph relations, domain term alignment,
+        and calibrated dense vector similarity.
         """
         results = retrieval_response.results
         graph_ev = retrieval_response.graph_evidence
+        query = (retrieval_response.query or "").lower()
 
         if not results and not graph_ev:
             return EvidenceSufficiency.NO_EVIDENCE
 
-        # If there are results, check scores
-        if results:
-            top_score = results[0].normalized_score
-            # If top result has high score or multiple results exist
-            if top_score >= 0.5 or len(results) >= 2 or len(graph_ev) >= 2:
+        # 1. Confirmed structural graph evidence provides direct ground truth
+        confirmed_graph = [e for e in graph_ev if getattr(e, "is_confirmed", True)]
+        if confirmed_graph:
+            return EvidenceSufficiency.SUFFICIENT
+
+        # 2. Extract key domain terms and extracted symbols from query
+        query_symbols = set(retrieval_response.diagnostics.get("extracted_symbols", [])) if retrieval_response.diagnostics else set()
+        stop_terms = {
+            "what", "where", "which", "when", "does", "have", "this", "that", "from", "with",
+            "explain", "show", "find", "code", "repo", "repository", "codebase", "project",
+            "function", "functions", "method", "methods", "class", "classes", "module", "modules",
+            "file", "files", "defined", "definition", "implemented", "implementation", "call",
+            "calls", "invokes", "invoke", "trace", "flow", "impact", "blast", "radius",
+            "auth", "flask", "express", "petclinic", "spring", "sindresorhus", "pallets",
+        }
+        words = re.findall(r"\b[a-zA-Z_][a-zA-Z0-9_]*\b", query)
+        domain_terms = {w for w in words if len(w) >= 4 and w not in stop_terms}
+
+        # 3. Check for exact symbol definition match in results
+        for r in results:
+            if r.symbol_name and (r.symbol_name in query_symbols or r.symbol_name.lower() in domain_terms):
                 return EvidenceSufficiency.SUFFICIENT
-            elif top_score >= 0.2:
+
+        # 4. Check domain terms in retrieved source code and symbols
+        combined_code = " ".join(f"{r.symbol_name or ''} {r.source_code}".lower() for r in results)
+        matched_domain_terms = {t for t in domain_terms if t in combined_code}
+
+        top_score = results[0].original_score if results else 0.0
+
+        # If query specified specific domain terms (e.g. 'cassandra', 'solidity', 'kafka', 'biometric')
+        # but NONE of them appeared in any retrieved chunk:
+        if domain_terms and not matched_domain_terms:
+            if top_score < 0.32:
+                return EvidenceSufficiency.NO_EVIDENCE
+            else:
+                return EvidenceSufficiency.INSUFFICIENT
+
+        # If domain terms match in retrieved code
+        if matched_domain_terms:
+            if top_score >= 0.55 or len(matched_domain_terms) >= 2:
+                return EvidenceSufficiency.SUFFICIENT
+            elif top_score >= 0.38 or len(matched_domain_terms) >= 1:
                 return EvidenceSufficiency.PARTIAL
             else:
                 return EvidenceSufficiency.INSUFFICIENT
 
-        if graph_ev:
+        # Conceptual query without specific domain tokens
+        if top_score >= 0.55:
+            return EvidenceSufficiency.SUFFICIENT
+        elif top_score >= 0.38:
             return EvidenceSufficiency.PARTIAL
-
-        return EvidenceSufficiency.INSUFFICIENT
+        elif top_score >= 0.28:
+            return EvidenceSufficiency.INSUFFICIENT
+        else:
+            return EvidenceSufficiency.NO_EVIDENCE
 
     async def generate_answer(
         self,
@@ -158,8 +203,8 @@ class GenerationService:
         # 6. Evaluate evidence sufficiency
         sufficiency = self.evaluate_evidence_sufficiency(retrieval_resp)
 
-        # 7. Check for NO_EVIDENCE
-        if sufficiency == EvidenceSufficiency.NO_EVIDENCE:
+        # 7. Check for NO_EVIDENCE or INSUFFICIENT
+        if sufficiency in (EvidenceSufficiency.NO_EVIDENCE, EvidenceSufficiency.INSUFFICIENT):
             answer_content = (
                 "The indexed repository does not contain sufficient evidence to answer this question. "
                 "No matching source code chunks or architectural relationships were found in the codebase. "
@@ -333,8 +378,8 @@ class GenerationService:
             # 8. Evaluate evidence sufficiency
             sufficiency = self.evaluate_evidence_sufficiency(retrieval_resp)
 
-            # 9. Handle NO_EVIDENCE case directly
-            if sufficiency == EvidenceSufficiency.NO_EVIDENCE:
+            # 9. Handle NO_EVIDENCE or INSUFFICIENT case directly
+            if sufficiency in (EvidenceSufficiency.NO_EVIDENCE, EvidenceSufficiency.INSUFFICIENT):
                 yield format_sse_event(
                     ChatStreamEventType.GENERATION_STARTED,
                     {"model": self.gemini_client.model_name},

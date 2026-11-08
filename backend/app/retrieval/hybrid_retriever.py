@@ -347,6 +347,46 @@ class HybridRetriever:
             finally:
                 execution_times["graph_traversal"] = round((time.perf_counter() - t0) * 1000, 2)
 
+        # Fallback safety: If prioritized engines returned zero results, execute fallback to avoid empty returns
+        if not vector_results and not keyword_results and not graph_results:
+            if not plan.vector_enabled and request.include_vector is not False:
+                try:
+                    raw_vector = self.vector_service.search(
+                        repository_id=repository_id,
+                        query=request.query,
+                        top_k=plan.vector_top_k,
+                        language=request.language,
+                        file_path=request.file_path,
+                        symbol_type=request.symbol_type,
+                    )
+                    for r in raw_vector:
+                        c = r.chunk
+                        vector_results.append(
+                            UnifiedSearchResult(
+                                chunk_id=c.chunk_id,
+                                repository_id=c.repository_id,
+                                file_path=c.file_path,
+                                symbol_id=c.symbol_id,
+                                symbol_name=c.symbol_name,
+                                symbol_type=c.symbol_type,
+                                language=c.language,
+                                start_line=c.start_line,
+                                end_line=c.end_line,
+                                source_code=c.source_code,
+                                signature=c.signature,
+                                docstring=c.docstring,
+                                context_header=c.context_header,
+                                retrieval_source="VECTOR",
+                                sources=["VECTOR"],
+                                original_score=round(r.similarity_score, 4),
+                                normalized_score=round(r.similarity_score, 4),
+                                rrf_score=0.0,
+                                confidence=1.0,
+                            )
+                        )
+                except Exception as e:
+                    logger.debug("Fallback vector search: %s", e)
+
         # 6. Reciprocal Rank Fusion & Deduplication
         t0 = time.perf_counter()
 

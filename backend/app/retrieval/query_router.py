@@ -52,118 +52,137 @@ class QueryRouter:
         graph_ops: List[str] = []
         reasons: Dict[str, str] = {}
 
-        # 1. Evaluate intents
-        for intent in intents:
-            if intent == QueryIntent.SEMANTIC:
-                vector_enabled = True
-                keyword_enabled = True
-                reasons["SEMANTIC"] = "Engage Vector search for semantic meaning and Keyword search for term matching."
+        # 1. Determine if this is a strict single-strategy override
+        is_vector_only = include_vector is True and include_graph is False and include_keyword is False
+        is_keyword_only = include_keyword is True and include_vector is False and include_graph is False
+        is_graph_only = include_graph is True and include_vector is False and include_keyword is False
 
-            elif intent == QueryIntent.EXACT_SYMBOL:
-                keyword_enabled = True
-                vector_enabled = True
-                graph_enabled = True
+        if is_vector_only:
+            vector_enabled = True
+            reasons["USER_OVERRIDE_VECTOR"] = "User explicitly selected vector-only retrieval."
+        elif is_keyword_only:
+            keyword_enabled = True
+            reasons["USER_OVERRIDE_KEYWORD"] = "User explicitly selected keyword-only retrieval."
+        elif is_graph_only:
+            graph_enabled = True
+            # Determine appropriate graph operations from intents
+            for intent in intents:
+                if intent == QueryIntent.CALLERS:
+                    graph_ops.append("callers")
+                elif intent == QueryIntent.CALLEES:
+                    graph_ops.append("callees")
+                elif intent == QueryIntent.DEPENDENCIES:
+                    graph_ops.append("dependencies")
+                elif intent == QueryIntent.INHERITANCE:
+                    graph_ops.append("inheritance")
+                elif intent == QueryIntent.IMPACT_ANALYSIS:
+                    graph_ops.append("impact")
+                elif intent == QueryIntent.EXECUTION_FLOW:
+                    graph_ops.extend(["callers", "callees"])
+            if not graph_ops:
                 graph_ops.append("callers")
-                reasons["EXACT_SYMBOL"] = "Engage Keyword search for exact identifier match and Graph for symbol relationships."
+            reasons["USER_OVERRIDE_GRAPH"] = "User explicitly selected graph-only retrieval."
+        else:
+            # 2. Query-Adaptive Retrieval Routing
+            has_structural = any(
+                i in intents
+                for i in (
+                    QueryIntent.CALLERS,
+                    QueryIntent.CALLEES,
+                    QueryIntent.DEPENDENCIES,
+                    QueryIntent.INHERITANCE,
+                    QueryIntent.IMPACT_ANALYSIS,
+                    QueryIntent.EXECUTION_FLOW,
+                    QueryIntent.ARCHITECTURE,
+                )
+            )
+            has_exact_symbol = QueryIntent.EXACT_SYMBOL in intents
+            has_semantic = QueryIntent.SEMANTIC in intents
 
-            elif intent == QueryIntent.CALLERS:
+            # A. Caller / Callee queries -> Prioritize graph traversal + keyword for chunk retrieval
+            if QueryIntent.CALLERS in intents or QueryIntent.CALLEES in intents:
                 graph_enabled = True
-                graph_ops.append("callers")
+                if QueryIntent.CALLERS in intents:
+                    graph_ops.append("callers")
+                if QueryIntent.CALLEES in intents:
+                    graph_ops.append("callees")
                 keyword_enabled = True
-                vector_enabled = True
-                reasons["CALLERS"] = "Engage Graph traversal for incoming call hierarchy and Keyword for symbol anchoring."
+                vector_enabled = False  # Avoid semantic subject swamping
+                reasons["ROUTING_STRUCTURAL_CALLS"] = "Prioritize graph traversal for invocation hierarchy and keyword for symbol chunks."
 
-            elif intent == QueryIntent.CALLEES:
-                graph_enabled = True
-                graph_ops.append("callees")
-                keyword_enabled = True
-                vector_enabled = True
-                reasons["CALLEES"] = "Engage Graph traversal for outgoing invocations."
-
-            elif intent == QueryIntent.DEPENDENCIES:
-                graph_enabled = True
-                graph_ops.append("dependencies")
-                keyword_enabled = True
-                reasons["DEPENDENCIES"] = "Engage Graph traversal for import and module dependency trees."
-
-            elif intent == QueryIntent.INHERITANCE:
+            # B. Inheritance queries -> Prioritize graph traversal + keyword for class chunks
+            elif QueryIntent.INHERITANCE in intents:
                 graph_enabled = True
                 graph_ops.append("inheritance")
                 keyword_enabled = True
-                reasons["INHERITANCE"] = "Engage Graph traversal for class inheritance and interface realization."
+                vector_enabled = False
+                reasons["ROUTING_INHERITANCE"] = "Prioritize graph traversal for class inheritance and interface realization."
 
-            elif intent == QueryIntent.IMPACT_ANALYSIS:
+            # C. Dependency queries -> Prioritize graph relationships and keyword evidence
+            elif QueryIntent.DEPENDENCIES in intents:
                 graph_enabled = True
-                graph_ops.append("impact")
-                vector_enabled = True
+                graph_ops.append("dependencies")
                 keyword_enabled = True
-                reasons["IMPACT_ANALYSIS"] = "Engage Graph reverse BFS for blast radius and Vector search for affected modules."
+                vector_enabled = False
+                reasons["ROUTING_DEPENDENCIES"] = "Prioritize graph relationships and keyword evidence for imports and dependencies."
 
-            elif intent == QueryIntent.EXECUTION_FLOW:
-                graph_enabled = True
-                graph_ops.append("callers")
-                graph_ops.append("callees")
-                vector_enabled = True
-                keyword_enabled = True
-                reasons["EXECUTION_FLOW"] = "Engage Graph invocation paths and Vector search for step-by-step logic."
-
-            elif intent == QueryIntent.ARCHITECTURE:
+            # D. Architecture queries -> Combine semantic and structural evidence
+            elif QueryIntent.ARCHITECTURE in intents:
                 vector_enabled = True
                 graph_enabled = True
                 graph_ops.append("dependencies")
                 keyword_enabled = True
-                reasons["ARCHITECTURE"] = "Engage Vector search for high-level concepts and Graph for directory structure."
+                reasons["ROUTING_ARCHITECTURE"] = "Combine semantic and structural evidence for repository architecture."
 
-            elif intent == QueryIntent.CONFIG_OR_DOCS:
-                keyword_enabled = True
+            # E. Impact Analysis & Execution Flow -> Hybrid retrieval combining all streams
+            elif QueryIntent.IMPACT_ANALYSIS in intents or QueryIntent.EXECUTION_FLOW in intents:
+                graph_enabled = True
+                if QueryIntent.IMPACT_ANALYSIS in intents:
+                    graph_ops.append("impact")
+                if QueryIntent.EXECUTION_FLOW in intents:
+                    graph_ops.extend(["callers", "callees"])
                 vector_enabled = True
-                reasons["CONFIG_OR_DOCS"] = "Engage Keyword search for manifest entries and Vector search for doc sections."
-
-            elif intent == QueryIntent.UNKNOWN:
-                vector_enabled = True
                 keyword_enabled = True
-                reasons["UNKNOWN"] = "Default fallback to hybrid Vector and Keyword retrieval."
+                reasons["ROUTING_FLOW_IMPACT"] = "Engage full hybrid retrieval across vector, keyword, and graph for flow/impact analysis."
 
-        # Default fallback if nothing enabled
-        if not (vector_enabled or keyword_enabled or graph_enabled):
-            vector_enabled = True
-            keyword_enabled = True
+            # F. Exact symbol lookup -> Prioritize keyword and symbol node retrieval (no caller traversal)
+            elif has_exact_symbol:
+                keyword_enabled = True
+                graph_enabled = True  # Enable node lookup without traversing callers
+                vector_enabled = False  # Prioritize exact symbol and avoid semantic drift
+                reasons["ROUTING_EXACT_SYMBOL"] = "Prioritize keyword and symbol retrieval for exact identifier match."
 
-        # 2. Apply user explicit overrides if provided
-        if include_vector is not None:
-            vector_enabled = include_vector
-            reasons["USER_OVERRIDE_VECTOR"] = f"User explicitly set include_vector={include_vector}"
+            # G. Conceptual questions -> Prioritize vector retrieval
+            elif has_semantic and not has_structural and not has_exact_symbol:
+                vector_enabled = True
+                keyword_enabled = False  # Avoid irrelevant stop-word noise
+                graph_enabled = False  # Avoid unnecessary graph traversal
+                reasons["ROUTING_CONCEPTUAL"] = "Prioritize vector retrieval for conceptual and semantic inquiries."
 
-        if include_graph is not None:
-            if not include_graph:
-                graph_enabled = False
-                reasons["USER_OVERRIDE_GRAPH"] = f"User explicitly set include_graph=False"
+            # H. Mixed / Config / Unknown fallback
             else:
-                # Enable graph if user requested it AND there are structural operations,
-                # or if graph is the sole requested strategy (graph_only mode)
-                is_graph_only = not include_vector
-                has_structural_intent = bool(graph_ops) or any(
-                    i in intents
-                    for i in (
-                        QueryIntent.CALLERS,
-                        QueryIntent.CALLEES,
-                        QueryIntent.DEPENDENCIES,
-                        QueryIntent.INHERITANCE,
-                        QueryIntent.IMPACT_ANALYSIS,
-                        QueryIntent.EXECUTION_FLOW,
-                        QueryIntent.ARCHITECTURE,
-                    )
-                )
-                if has_structural_intent or is_graph_only:
+                vector_enabled = True
+                keyword_enabled = True
+                if has_structural:
                     graph_enabled = True
-                    reasons["USER_OVERRIDE_GRAPH"] = f"User explicitly set include_graph=True"
-                else:
-                    graph_enabled = False
-                    reasons["GRAPH_BYPASSED"] = "Graph traversal omitted for pure non-structural query."
+                reasons["ROUTING_HYBRID_FALLBACK"] = "Engage hybrid retrieval for multi-intent or ambiguous query."
 
-        if include_keyword is not None:
-            keyword_enabled = include_keyword
-            reasons["USER_OVERRIDE_KEYWORD"] = f"User explicitly set include_keyword={include_keyword}"
+            # Apply explicit overrides if specified by caller
+            if include_vector is not None:
+                vector_enabled = include_vector
+                reasons["USER_OVERRIDE_VECTOR"] = f"User explicitly set include_vector={include_vector}"
+            if include_keyword is not None:
+                keyword_enabled = include_keyword
+                reasons["USER_OVERRIDE_KEYWORD"] = f"User explicitly set include_keyword={include_keyword}"
+            if include_graph is not None:
+                if not include_graph:
+                    graph_enabled = False
+                    reasons["USER_OVERRIDE_GRAPH"] = "User explicitly set include_graph=False"
+                else:
+                    if has_structural or not vector_enabled:
+                        graph_enabled = True
+                        reasons["USER_OVERRIDE_GRAPH"] = "User explicitly set include_graph=True"
+                graph_enabled = False
 
         # 3. Compile active strategies list
         strategies: List[RetrievalStrategy] = []

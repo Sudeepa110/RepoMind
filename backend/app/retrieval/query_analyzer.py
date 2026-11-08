@@ -80,7 +80,7 @@ class QueryAnalyzer:
 
         # 3. Check for Caller queries
         caller_match = re.search(
-            r"\b(who|which|what\s+(?:functions?|methods?|callers?|symbols?))\s+(?:calls?|invokes?)|callers?\s+of|where\s+is\s+.*called|what\s+calls\b",
+            r"\b(?:who|which|what\s+(?:functions?|methods?|callers?|symbols?|components?|services?|classes?))\s+(?:calls?|invokes?)|callers?\s+of|where\s+is\s+.*called|what\s+calls\b",
             q_lower,
         )
         if caller_match:
@@ -89,7 +89,7 @@ class QueryAnalyzer:
 
         # 4. Check for Callee queries
         callee_match = re.search(
-            r"\b(?:what|which\s+(?:functions?|methods?))\s+(?:does\s+.*\s+(?:call|invoke)|is\s+called\s+by)|callees?\s+of|what\s+does\s+.*\s+(?:call|invoke)\b",
+            r"\b(?:what|which)\s+(?:functions?|methods?|operations?|classes?|components?|\w+(?:\s+or\s+\w+)?)\s+does\s+.*\s+(?:call|invoke)|callees?\s+of|what\s+does\s+.*\s+(?:call|invoke)\b",
             q_lower,
         )
         if callee_match:
@@ -98,7 +98,7 @@ class QueryAnalyzer:
 
         # 5. Check for Dependency queries
         dep_match = re.search(
-            r"\b(depend(s|encies)?\s+on|who\s+imports|imports?\s+of|what\s+modules?\s+does|dependents?\s+of)\b",
+            r"\b(?:depend(?:s|encies)?\s+on|who\s+imports|imports?\s+of|what\s+(?:modules?|files?)\s+does|what\s+does\s+.*\s+import|dependents?\s+of)\b",
             q_lower,
         )
         if dep_match:
@@ -107,7 +107,7 @@ class QueryAnalyzer:
 
         # 6. Check for Inheritance queries
         inh_match = re.search(
-            r"\b(inherits?|subclasses?|superclasses?|base\s+class|classes\s+implementing|implements?\s+(interface)?)\b",
+            r"\b(?:inherits?|subclasses?|superclasses?|base\s+class|classes\s+implementing|implements?\s+(?:interface)?|inheritance\s+hierarchy)\b",
             q_lower,
         )
         if inh_match:
@@ -116,7 +116,7 @@ class QueryAnalyzer:
 
         # 7. Check for Impact Analysis queries
         impact_match = re.search(
-            r"\b(what\s+(could\s+break|breaks)|impact\s+of\s+(modifying|changing)|blast\s+radius|affected\s+if|change\s+impact)\b",
+            r"\b(?:what\s+(?:could\s+break|breaks)|impact\s+of\s+(?:modifying|changing)|blast\s+radius|affected\s+if|change\s+impact|(?:if\s+I\s+modify|modifying\s+.*impacted|impacted))\b",
             q_lower,
         )
         if impact_match:
@@ -125,7 +125,7 @@ class QueryAnalyzer:
 
         # 8. Check for Execution Flow queries
         flow_match = re.search(
-            r"\b(execution\s+flow|call\s+flow|trace\s+(the\s+)?flow|path\s+(from|between)|call\s+sequence|step[- ]by[- ]step\s+flow)\b",
+            r"\b(?:execution\s+flow|call\s+flow|trace\s+(?:the\s+)?flow|path\s+(?:from|between)|call\s+sequence|step[- ]by[- ]step\s+flow|trace\s+how\b)",
             q_lower,
         )
         if flow_match:
