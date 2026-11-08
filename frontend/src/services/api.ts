@@ -16,6 +16,9 @@ import type {
   CalleesResponse,
   ImpactAnalysisResponse,
   SubgraphResponse,
+  HybridSearchRequest,
+  HybridRetrievalResponse,
+  QueryAnalysisResult,
 } from '../types';
 
 const API_BASE = '/api/v1';
@@ -163,6 +166,28 @@ export const api = {
     const res = await apiClient.get<SubgraphResponse>(`/repositories/${repositoryId}/graph/subgraph`, {
       params: { center_node_id: centerNodeId, radius, max_nodes: maxNodes },
     });
+    return res.data;
+  },
+
+  async hybridSearch(
+    repositoryId: string,
+    payload: HybridSearchRequest
+  ): Promise<HybridRetrievalResponse> {
+    const res = await apiClient.post<HybridRetrievalResponse>(
+      `/repositories/${repositoryId}/hybrid-search`,
+      payload
+    );
+    return res.data;
+  },
+
+  async analyzeQuery(
+    repositoryId: string,
+    query: string
+  ): Promise<QueryAnalysisResult> {
+    const res = await apiClient.post<QueryAnalysisResult>(
+      `/repositories/${repositoryId}/analyze-query`,
+      { query }
+    );
     return res.data;
   },
 };

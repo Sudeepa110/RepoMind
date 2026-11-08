@@ -32,6 +32,7 @@ from backend.app.services.indexing import (
 )
 from backend.app.ingestion.cloner import cleanup_workspace
 from backend.app.retrieval.semantic_search import semantic_search_service
+from backend.app.retrieval.keyword_search import keyword_search_engine
 from backend.app.graph.networkx_store import networkx_graph_store
 
 router = APIRouter(prefix="/repositories", tags=["Repositories"])
@@ -470,8 +471,11 @@ async def delete_repository(
     # 3. Cleanup Knowledge Graph
     networkx_graph_store.delete(repository_id)
 
-    # 4. Cleanup SQLite record
+    # 4. Cleanup Keyword Search FTS5
+    keyword_search_engine.delete_repository(repository_id)
+
+    # 5. Cleanup SQLite record
     await db.delete(repo)
     await db.commit()
 
-    return {"status": "success", "message": f"Repository '{repo.owner}/{repo.name}', vector indexes, and knowledge graph deleted successfully."}
+    return {"status": "success", "message": f"Repository '{repo.owner}/{repo.name}', vector indexes, knowledge graph, and keyword index deleted successfully."}

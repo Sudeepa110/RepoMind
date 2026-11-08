@@ -261,3 +261,4 @@ async def get_subgraph(
     await _verify_repository_exists(repository_id, db)
     res = networkx_graph_store.get_subgraph(center_node_id, radius=radius, max_nodes=max_nodes)
     return SubgraphResponse(**res)
+

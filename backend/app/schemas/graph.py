@@ -217,3 +217,4 @@ class SubgraphResponse(BaseModel):
     edge_count: int
     nodes: List[Dict[str, Any]]
     edges: List[Dict[str, Any]]
+

@@ -426,3 +426,4 @@ class GraphTraversalService:
 
 # Global singleton instance
 graph_traversal_service = GraphTraversalService()
+

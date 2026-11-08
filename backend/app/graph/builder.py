@@ -206,3 +206,4 @@ class GraphBuilder:
 
 # Global singleton instance
 graph_builder = GraphBuilder()
+

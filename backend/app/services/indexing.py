@@ -16,6 +16,7 @@ from backend.app.ingestion.analyzer import analyze_repository
 from backend.app.processing.engine import code_engine
 from backend.app.vectorstore.chunker import chunker
 from backend.app.retrieval.semantic_search import semantic_search_service
+from backend.app.retrieval.keyword_search import keyword_search_engine
 from backend.app.graph.builder import graph_builder
 from backend.app.graph.networkx_store import networkx_graph_store
 
@@ -251,6 +252,20 @@ async def process_repository_job(
         logger.info(
             f"Built knowledge graph for {repo_id}: {graph_stats['total_nodes']} nodes, {graph_stats['total_edges']} edges (density {graph_stats['density']})"
         )
+
+        # Stage 7b: Keyword Indexing for BM25 Search (SQLite FTS5)
+        await update_job_progress(
+            job_id, repo_id, status="processing", current_stage=f"Indexing {len(chunks)} code chunks in SQLite FTS5 for BM25 keyword search", progress_pct=92
+        )
+
+        kw_count = await loop.run_in_executor(
+            None,
+            keyword_search_engine.index_chunks,
+            repo_id,
+            chunks,
+            force_reindex,
+        )
+        logger.info(f"Indexed {kw_count} chunks in SQLite FTS5 for repo {repo_id}")
 
         # Stage 8: Persist Analysis & File Metadata into SQLite (90% -> 100%)
         await update_job_progress(

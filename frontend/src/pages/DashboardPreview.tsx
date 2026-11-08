@@ -26,6 +26,9 @@ import {
   Activity,
   ArrowUpRight,
   Zap,
+  Copy,
+  Check,
+  Workflow,
 } from 'lucide-react';
 import { api } from '../services/api';
 import type {
@@ -42,6 +45,7 @@ import type {
   CalleesResponse,
   ImpactAnalysisResponse,
   SubgraphResponse,
+  HybridRetrievalResponse,
 } from '../types';
 
 interface DashboardPreviewProps {
@@ -68,10 +72,11 @@ const LANGUAGE_COLORS: Record<string, string> = {
 
 const EXAMPLE_QUERIES = [
   'authentication and password verification',
-  'database connection and session management',
-  'HTTP API routing and request handlers',
-  'configuration loading and environment settings',
-  'error handling and exception responses',
+  'who calls verify_password',
+  'what does handle_login invoke',
+  'database connection and session pool',
+  'impact of modifying auth.py',
+  'how is this repository structured',
 ];
 
 export const DashboardPreview: React.FC<DashboardPreviewProps> = ({
@@ -89,11 +94,18 @@ export const DashboardPreview: React.FC<DashboardPreviewProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   // Search state
+  const [searchMode, setSearchMode] = useState<'hybrid' | 'vector'>('hybrid');
+  const [includeVector, setIncludeVector] = useState(true);
+  const [includeGraph, setIncludeGraph] = useState(true);
+  const [includeKeyword, setIncludeKeyword] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchTopK, setSearchTopK] = useState(5);
   const [searchLangFilter, setSearchLangFilter] = useState('');
   const [searchTypeFilter, setSearchTypeFilter] = useState('');
   const [searchResults, setSearchResults] = useState<SearchChunkResult[]>([]);
+  const [hybridResponse, setHybridResponse] = useState<HybridRetrievalResponse | null>(null);
+  const [showAssembledContext, setShowAssembledContext] = useState(false);
+  const [copiedContext, setCopiedContext] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchExecuted, setSearchExecuted] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
@@ -207,7 +219,7 @@ export const DashboardPreview: React.FC<DashboardPreviewProps> = ({
     }
   }, [activeTab, details]);
 
-  // Execute Semantic Code Search
+  // Execute Hybrid or Vector Code Search
   const handleSearch = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!searchQuery.trim() || !details?.id) return;
@@ -217,17 +229,31 @@ export const DashboardPreview: React.FC<DashboardPreviewProps> = ({
     setSearchExecuted(true);
 
     try {
-      const res = await api.searchRepository(details.id, {
-        query: searchQuery.trim(),
-        top_k: searchTopK,
-        language: searchLangFilter || undefined,
-        symbol_type: searchTypeFilter || undefined,
-      });
-      setSearchResults(res.results);
+      if (searchMode === 'hybrid') {
+        const res = await api.hybridSearch(details.id, {
+          query: searchQuery.trim(),
+          top_k: searchTopK,
+          include_vector: includeVector,
+          include_graph: includeGraph,
+          include_keyword: includeKeyword,
+          language: searchLangFilter || undefined,
+          symbol_type: searchTypeFilter || undefined,
+        });
+        setHybridResponse(res);
+      } else {
+        const res = await api.searchRepository(details.id, {
+          query: searchQuery.trim(),
+          top_k: searchTopK,
+          language: searchLangFilter || undefined,
+          symbol_type: searchTypeFilter || undefined,
+        });
+        setSearchResults(res.results);
+      }
     } catch (err: any) {
       console.error('Search failed:', err);
-      setSearchError(err.response?.data?.detail || err.message || 'Failed to execute semantic search.');
+      setSearchError(err.response?.data?.detail || err.message || 'Failed to execute search.');
       setSearchResults([]);
+      setHybridResponse(null);
     } finally {
       setSearchLoading(false);
     }
@@ -621,12 +647,10 @@ export const DashboardPreview: React.FC<DashboardPreviewProps> = ({
           }`}
         >
           <Search className="h-4 w-4" />
-          <span>Semantic Vector Search</span>
-          {vectorStats && vectorStats.total_chunks > 0 && (
-            <span className="rounded-full bg-indigo-500/20 px-2 py-0.5 text-[10px] font-mono text-indigo-300">
-              {vectorStats.total_chunks}
-            </span>
-          )}
+          <span>Hybrid Code Search</span>
+          <span className="rounded-full bg-indigo-500/20 px-2 py-0.5 text-[10px] font-mono text-indigo-300">
+            Vector + Graph + FTS5
+          </span>
         </button>
 
         <button
@@ -810,11 +834,77 @@ export const DashboardPreview: React.FC<DashboardPreviewProps> = ({
           </div>
         )}
 
-        {/* SEMANTIC VECTOR SEARCH TAB (PHASE 4) */}
+        {/* HYBRID RETRIEVAL ENGINE TAB (PHASE 6) */}
         {activeTab === 'search' && (
           <div className="space-y-6">
-            {/* Search Input Bar & Filter Bar */}
+            {/* Search Input Bar & Mode Selector */}
             <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 backdrop-blur-md">
+              {/* Mode Toggle Bar */}
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
+                <div className="flex items-center space-x-2">
+                  <span className="text-xs font-semibold text-slate-400">Retrieval Strategy:</span>
+                  <div className="inline-flex rounded-lg bg-slate-950 p-1 border border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => setSearchMode('hybrid')}
+                      className={`flex items-center space-x-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                        searchMode === 'hybrid'
+                          ? 'bg-indigo-600 text-white shadow-sm'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <Zap className="h-3.5 w-3.5 text-amber-400" />
+                      <span>Hybrid Fusion (RRF)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSearchMode('vector')}
+                      className={`flex items-center space-x-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                        searchMode === 'vector'
+                          ? 'bg-indigo-600 text-white shadow-sm'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <Database className="h-3.5 w-3.5 text-indigo-400" />
+                      <span>Dense Vector Only</span>
+                    </button>
+                  </div>
+                </div>
+
+                {searchMode === 'hybrid' && (
+                  <div className="flex items-center space-x-3 text-xs">
+                    <span className="text-slate-500">Engines:</span>
+                    <label className="flex items-center space-x-1.5 cursor-pointer text-slate-300">
+                      <input
+                        type="checkbox"
+                        checked={includeVector}
+                        onChange={(e) => setIncludeVector(e.target.checked)}
+                        className="rounded border-slate-700 bg-slate-900 text-indigo-500 focus:ring-0"
+                      />
+                      <span>Vector</span>
+                    </label>
+                    <label className="flex items-center space-x-1.5 cursor-pointer text-slate-300">
+                      <input
+                        type="checkbox"
+                        checked={includeGraph}
+                        onChange={(e) => setIncludeGraph(e.target.checked)}
+                        className="rounded border-slate-700 bg-slate-900 text-emerald-500 focus:ring-0"
+                      />
+                      <span>Graph</span>
+                    </label>
+                    <label className="flex items-center space-x-1.5 cursor-pointer text-slate-300">
+                      <input
+                        type="checkbox"
+                        checked={includeKeyword}
+                        onChange={(e) => setIncludeKeyword(e.target.checked)}
+                        className="rounded border-slate-700 bg-slate-900 text-amber-500 focus:ring-0"
+                      />
+                      <span>Keyword (FTS5)</span>
+                    </label>
+                  </div>
+                )}
+              </div>
+
               <form onSubmit={handleSearch} className="space-y-4">
                 <div className="relative flex items-center">
                   <Search className="absolute left-4 h-5 w-5 text-slate-400" />
@@ -822,7 +912,11 @@ export const DashboardPreview: React.FC<DashboardPreviewProps> = ({
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search code semantics (e.g. 'JWT token verification' or 'database session pool')..."
+                    placeholder={
+                      searchMode === 'hybrid'
+                        ? "Ask anything (e.g. 'who calls verify_password', 'how is database connected', 'impact of auth.py')..."
+                        : "Search code semantics (e.g. 'JWT token verification' or 'database session pool')..."
+                    }
                     className="w-full rounded-xl border border-slate-700 bg-slate-950/80 py-3.5 pl-12 pr-28 text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   />
                   <button
@@ -910,7 +1004,7 @@ export const DashboardPreview: React.FC<DashboardPreviewProps> = ({
               </form>
             </div>
 
-            {/* ChromaDB Vector Store Diagnostic Card */}
+            {/* Storage Diagnostic Card */}
             {vectorStats && (
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-xl border border-slate-800 bg-slate-900/40 p-4 text-xs">
                 <div className="flex items-center space-x-3">
@@ -919,11 +1013,11 @@ export const DashboardPreview: React.FC<DashboardPreviewProps> = ({
                   </div>
                   <div>
                     <div className="flex items-center space-x-2">
-                      <span className="font-semibold text-white">ChromaDB Persistent Collection:</span>
-                      <span className="font-mono text-indigo-300">{vectorStats.collection_name}</span>
+                      <span className="font-semibold text-white">Hybrid Retrieval Pipeline Ready:</span>
+                      <span className="font-mono text-indigo-300">ChromaDB + NetworkX + SQLite FTS5</span>
                     </div>
                     <p className="text-slate-400 mt-0.5">
-                      {vectorStats.total_chunks} structure-aware chunks indexed • Model: sentence-transformers/all-MiniLM-L6-v2 (384-dim)
+                      {vectorStats.total_chunks} chunks indexed • Dense MiniLM-L6-v2 + BM25 Lexical + Structural Graph Traversal
                     </p>
                   </div>
                 </div>
@@ -935,20 +1029,29 @@ export const DashboardPreview: React.FC<DashboardPreviewProps> = ({
                   className="flex items-center space-x-1.5 rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-700 hover:text-white transition-colors disabled:opacity-50"
                 >
                   <RefreshCw className={`h-3.5 w-3.5 ${reindexing ? 'animate-spin' : ''}`} />
-                  <span>{reindexing ? 'Re-indexing...' : 'Re-index Vectors'}</span>
+                  <span>{reindexing ? 'Re-indexing...' : 'Re-index Storage'}</span>
                 </button>
               </div>
             )}
 
-            {/* Search Results Section */}
+            {/* Loading State */}
             {searchLoading && (
               <div className="flex flex-col items-center justify-center py-16 text-center text-slate-400">
                 <Loader2 className="h-8 w-8 animate-spin text-indigo-400" />
-                <p className="mt-3 text-sm font-semibold text-white">Generating Dense Vector Embeddings...</p>
-                <p className="mt-1 text-xs text-slate-500">Querying ChromaDB cosine similarity index</p>
+                <p className="mt-3 text-sm font-semibold text-white">
+                  {searchMode === 'hybrid'
+                    ? 'Executing Hybrid Retrieval & Reciprocal Rank Fusion...'
+                    : 'Querying ChromaDB Dense Vector Store...'}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {searchMode === 'hybrid'
+                    ? 'Coordinating Vector Search, Graph Traversal, and SQLite FTS5 BM25'
+                    : 'Querying cosine similarity index'}
+                </p>
               </div>
             )}
 
+            {/* Error Message */}
             {searchError && (
               <div className="flex items-center space-x-3 rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 text-xs text-rose-300">
                 <AlertTriangle className="h-5 w-5 shrink-0 text-rose-400" />
@@ -956,108 +1059,422 @@ export const DashboardPreview: React.FC<DashboardPreviewProps> = ({
               </div>
             )}
 
-            {!searchLoading && searchExecuted && searchResults.length === 0 && !searchError && (
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-12 text-center text-slate-400">
-                <Code2 className="mx-auto h-10 w-10 text-slate-600" />
-                <h4 className="mt-3 text-sm font-bold text-white">No Matching Code Chunks</h4>
-                <p className="mt-1 text-xs text-slate-500">
-                  Try broadening your search query or removing language/symbol filters.
-                </p>
+            {/* HYBRID RETRIEVAL VIEW (PHASE 6) */}
+            {searchMode === 'hybrid' && !searchLoading && hybridResponse && (
+              <div className="space-y-6">
+                {/* Query Understanding & Timing Diagnostics Card */}
+                <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 text-xs">
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-semibold text-white">Intents Detected:</span>
+                      {hybridResponse.intents.map((intent) => (
+                        <span
+                          key={intent}
+                          className="rounded-full bg-indigo-500/10 border border-indigo-500/30 px-2.5 py-0.5 text-[11px] font-semibold text-indigo-300"
+                        >
+                          {intent}
+                        </span>
+                      ))}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-slate-400">Strategies Used:</span>
+                      {hybridResponse.strategies_used.map((st) => (
+                        <span
+                          key={st}
+                          className="rounded bg-slate-800 px-2 py-0.5 text-[10px] font-mono font-semibold text-slate-300"
+                        >
+                          {st}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Engine Latency Badges */}
+                  <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-slate-400">
+                    <span className="font-semibold text-slate-300">Execution Latency:</span>
+                    <span className="rounded bg-slate-950 px-2 py-0.5 font-mono text-emerald-400 border border-slate-800">
+                      Total: {hybridResponse.execution_times.total_retrieval || 0}ms
+                    </span>
+                    {hybridResponse.execution_times.vector_search !== undefined && (
+                      <span className="rounded bg-slate-950 px-2 py-0.5 font-mono text-indigo-300 border border-slate-800">
+                        Vector: {hybridResponse.execution_times.vector_search}ms
+                      </span>
+                    )}
+                    {hybridResponse.execution_times.keyword_search !== undefined && (
+                      <span className="rounded bg-slate-950 px-2 py-0.5 font-mono text-amber-300 border border-slate-800">
+                        Keyword: {hybridResponse.execution_times.keyword_search}ms
+                      </span>
+                    )}
+                    {hybridResponse.execution_times.graph_traversal !== undefined && (
+                      <span className="rounded bg-slate-950 px-2 py-0.5 font-mono text-cyan-300 border border-slate-800">
+                        Graph: {hybridResponse.execution_times.graph_traversal}ms
+                      </span>
+                    )}
+                    {hybridResponse.execution_times.fusion_and_ranking !== undefined && (
+                      <span className="rounded bg-slate-950 px-2 py-0.5 font-mono text-purple-300 border border-slate-800">
+                        RRF Fusion: {hybridResponse.execution_times.fusion_and_ranking}ms
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Structural Graph Evidence Section (if available) */}
+                {hybridResponse.graph_evidence.length > 0 && (
+                  <div className="space-y-3">
+                    <div className="flex items-center space-x-2 text-xs font-semibold text-white">
+                      <Network className="h-4 w-4 text-emerald-400" />
+                      <span>Structural Knowledge Graph Evidence ({hybridResponse.graph_evidence.length} relations):</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {hybridResponse.graph_evidence.map((ev, eIdx) => (
+                        <div
+                          key={eIdx}
+                          className="rounded-xl border border-slate-800 bg-slate-900/40 p-3 text-xs space-y-1.5"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="rounded bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
+                              {ev.relationship_type}
+                            </span>
+                            <span className="text-[10px] text-slate-500">
+                              {ev.is_confirmed ? 'CONFIRMED' : `INFERRED (${Math.round(ev.confidence * 100)}%)`}
+                            </span>
+                          </div>
+                          <div className="flex items-center space-x-2 font-mono text-slate-200">
+                            <span className="font-semibold text-indigo-300">{ev.source_name}</span>
+                            <span className="text-slate-500">&rarr;</span>
+                            <span className="font-semibold text-cyan-300">{ev.target_name}</span>
+                          </div>
+                          {ev.file_path && (
+                            <div className="text-[11px] text-slate-400">
+                              in <span className="font-mono text-slate-300">{ev.file_path}</span>
+                              {ev.lines.length > 0 && ` (line ${ev.lines.join(', ')})`}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Ranked Source Code Results Section */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between text-xs text-slate-400">
+                    <span className="font-semibold text-white">
+                      Ranked Code Implementations ({hybridResponse.results.length} fused results):
+                    </span>
+                    <span className="font-mono text-[11px] text-slate-500">
+                      Ranked via Reciprocal Rank Fusion (k=60)
+                    </span>
+                  </div>
+
+                  {hybridResponse.results.length === 0 ? (
+                    <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-12 text-center text-slate-400">
+                      <Code2 className="mx-auto h-10 w-10 text-slate-600" />
+                      <h4 className="mt-3 text-sm font-bold text-white">No Matching Code Components</h4>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Try modifying search query terms or relaxing language filters.
+                      </p>
+                    </div>
+                  ) : (
+                    hybridResponse.results.map((res, idx) => {
+                      const isMultiSource = res.sources.length > 1;
+                      return (
+                        <div
+                          key={res.chunk_id || idx}
+                          className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 transition-all hover:border-slate-700"
+                        >
+                          {/* Result Header */}
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
+                            <div className="flex items-center space-x-2">
+                              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-800 font-mono text-xs font-bold text-indigo-400">
+                                #{idx + 1}
+                              </span>
+                              <span className="font-mono text-xs font-semibold text-white">
+                                {res.file_path}
+                              </span>
+                              <span className="font-mono text-[11px] text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded">
+                                L{res.start_line}-L{res.end_line}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center space-x-2">
+                              {/* Source Provenance Badge */}
+                              <span
+                                className={`rounded px-2 py-0.5 text-[10px] font-bold ${
+                                  isMultiSource
+                                    ? 'bg-purple-500/15 border border-purple-500/30 text-purple-300'
+                                    : res.retrieval_source === 'KEYWORD'
+                                    ? 'bg-amber-500/15 border border-amber-500/30 text-amber-300'
+                                    : res.retrieval_source === 'GRAPH'
+                                    ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300'
+                                    : 'bg-indigo-500/15 border border-indigo-500/30 text-indigo-300'
+                                }`}
+                              >
+                                {res.retrieval_source}
+                              </span>
+
+                              {res.symbol_type && (
+                                <span className="rounded bg-slate-800 px-2 py-0.5 text-[10px] font-semibold text-slate-300">
+                                  {res.symbol_type}
+                                </span>
+                              )}
+
+                              <div className="flex items-center space-x-1 rounded bg-slate-800 px-2 py-0.5 text-[10px] font-mono text-emerald-400">
+                                <span>RRF: {res.rrf_score}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Symbol Name & Docstring */}
+                          {(res.symbol_name || res.docstring) && (
+                            <div className="mt-2.5 flex flex-wrap items-center gap-2 text-xs">
+                              {res.symbol_name && (
+                                <span className="font-mono text-xs text-indigo-300">
+                                  symbol: <span className="font-bold">{res.symbol_name}</span>
+                                </span>
+                              )}
+                              {res.docstring && (
+                                <span className="text-[11px] text-slate-400 truncate max-w-lg italic">
+                                  "{res.docstring}"
+                                </span>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Code Snippet Box */}
+                          <div className="mt-3 max-h-64 overflow-y-auto rounded-lg border border-slate-950 bg-slate-950/90 p-3 font-mono text-xs text-slate-200">
+                            <div className="table w-full">
+                              {res.source_code.split('\n').map((line, lIdx) => (
+                                <div key={lIdx} className="table-row hover:bg-slate-900/50">
+                                  <span className="table-cell select-none pr-3 text-right text-slate-600 font-mono text-[10px] w-10">
+                                    {res.start_line + lIdx}
+                                  </span>
+                                  <span className="table-cell whitespace-pre font-mono text-slate-300 text-[11px]">
+                                    {line || ' '}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Action Button */}
+                          <div className="mt-3 flex justify-end">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedFilePath(res.file_path);
+                                setActiveTab('explorer');
+                              }}
+                              className="flex items-center space-x-1.5 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                            >
+                              <span>Open in Code Explorer</span>
+                              <ExternalLink className="h-3 w-3" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* Assembled Context & Verified Citations Card */}
+                {hybridResponse.assembled_context && (
+                  <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5 space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          <Workflow className="h-4 w-4 text-indigo-400" />
+                          <h4 className="text-xs font-semibold text-white">
+                            Structured Context Assembler (LLM Grounding Context)
+                          </h4>
+                        </div>
+                        <p className="mt-0.5 text-[11px] text-slate-400">
+                          {hybridResponse.assembled_context.summary}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center space-x-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(hybridResponse.assembled_context.formatted_context);
+                            setCopiedContext(true);
+                            setTimeout(() => setCopiedContext(false), 2000);
+                          }}
+                          className="flex items-center space-x-1.5 rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-700 hover:text-white transition-colors"
+                        >
+                          {copiedContext ? (
+                            <>
+                              <Check className="h-3.5 w-3.5 text-emerald-400" />
+                              <span className="text-emerald-400">Copied!</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="h-3.5 w-3.5" />
+                              <span>Copy Context</span>
+                            </>
+                          )}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setShowAssembledContext(!showAssembledContext)}
+                          className="rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs text-indigo-300 hover:text-white transition-colors"
+                        >
+                          {showAssembledContext ? 'Collapse Context' : 'Expand Full Context'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Verified Citations Table */}
+                    <div className="space-y-2">
+                      <span className="text-[11px] font-semibold text-slate-400">Verified Evidence Citations:</span>
+                      <div className="overflow-x-auto rounded-lg border border-slate-950">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-slate-950 text-slate-400 text-[11px]">
+                            <tr>
+                              <th className="px-3 py-2">Rank</th>
+                              <th className="px-3 py-2">File Path</th>
+                              <th className="px-3 py-2">Line Range</th>
+                              <th className="px-3 py-2">Symbol</th>
+                              <th className="px-3 py-2">Source Engine</th>
+                              <th className="px-3 py-2 text-right">RRF Score</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-800/60 font-mono text-[11px]">
+                            {hybridResponse.assembled_context.citations.map((c) => (
+                              <tr key={c.rank} className="hover:bg-slate-900/40">
+                                <td className="px-3 py-2 text-indigo-400 font-bold">#{c.rank}</td>
+                                <td className="px-3 py-2 text-slate-300">{c.file_path}</td>
+                                <td className="px-3 py-2 text-slate-400">L{c.start_line}-L{c.end_line}</td>
+                                <td className="px-3 py-2 text-cyan-300">{c.symbol_name || '-'}</td>
+                                <td className="px-3 py-2 text-slate-300">{c.sources.join('+')}</td>
+                                <td className="px-3 py-2 text-right text-emerald-400">{c.rrf_score}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/* Expandable Formatted Markdown Context Block */}
+                    {showAssembledContext && (
+                      <div className="mt-3 rounded-lg border border-slate-950 bg-slate-950/90 p-4">
+                        <pre className="overflow-x-auto font-mono text-[11px] text-slate-300 whitespace-pre-wrap leading-relaxed max-h-96">
+                          {hybridResponse.assembled_context.formatted_context}
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
-            {!searchLoading && searchResults.length > 0 && (
+            {/* DENSE VECTOR ONLY VIEW (LEGACY PHASE 4) */}
+            {searchMode === 'vector' && !searchLoading && searchExecuted && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between text-xs text-slate-400">
                   <span>Found {searchResults.length} relevant code chunks:</span>
                   <span className="font-mono text-[11px] text-slate-500">Ranked by Cosine Similarity</span>
                 </div>
 
-                {searchResults.map((res, idx) => {
-                  const matchPct = Math.round(res.similarity_score * 100);
-                  return (
-                    <div
-                      key={res.chunk_id || idx}
-                      className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 transition-all hover:border-slate-700"
-                    >
-                      {/* Top Header of Result */}
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
-                        <div className="flex items-center space-x-2">
-                          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-800 font-mono text-xs font-bold text-indigo-400">
-                            #{idx + 1}
-                          </span>
-                          <span className="font-mono text-xs font-semibold text-white">
-                            {res.file_path}
-                          </span>
-                          <span className="font-mono text-[11px] text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded">
-                            L{res.start_line}-L{res.end_line}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center space-x-2">
-                          {res.symbol_type && (
-                            <span className="rounded bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 text-[10px] font-semibold text-purple-300">
-                              {res.symbol_type}
+                {searchResults.length === 0 ? (
+                  <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-12 text-center text-slate-400">
+                    <Code2 className="mx-auto h-10 w-10 text-slate-600" />
+                    <h4 className="mt-3 text-sm font-bold text-white">No Matching Code Chunks</h4>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Try broadening your search query or removing language/symbol filters.
+                    </p>
+                  </div>
+                ) : (
+                  searchResults.map((res, idx) => {
+                    const matchPct = Math.round(res.similarity_score * 100);
+                    return (
+                      <div
+                        key={res.chunk_id || idx}
+                        className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 transition-all hover:border-slate-700"
+                      >
+                        {/* Top Header of Result */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
+                          <div className="flex items-center space-x-2">
+                            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-800 font-mono text-xs font-bold text-indigo-400">
+                              #{idx + 1}
                             </span>
-                          )}
-                          <span className="rounded bg-slate-800 px-2 py-0.5 text-[10px] font-mono text-slate-400">
-                            {res.language}
-                          </span>
-                          <div className="flex items-center space-x-1 rounded bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
-                            <span>{matchPct}% match</span>
+                            <span className="font-mono text-xs font-semibold text-white">
+                              {res.file_path}
+                            </span>
+                            <span className="font-mono text-[11px] text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded">
+                              L{res.start_line}-L{res.end_line}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center space-x-2">
+                            {res.symbol_type && (
+                              <span className="rounded bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 text-[10px] font-semibold text-purple-300">
+                                {res.symbol_type}
+                              </span>
+                            )}
+                            <span className="rounded bg-slate-800 px-2 py-0.5 text-[10px] font-mono text-slate-400">
+                              {res.language}
+                            </span>
+                            <div className="flex items-center space-x-1 rounded bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
+                              <span>{matchPct}% match</span>
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      {/* Symbol signature or docstring if available */}
-                      {(res.symbol_name || res.docstring) && (
-                        <div className="mt-2.5 flex flex-wrap items-center gap-2 text-xs">
-                          {res.symbol_name && (
-                            <span className="font-mono text-xs text-indigo-300">
-                              symbol: <span className="font-bold">{res.symbol_name}</span>
-                            </span>
-                          )}
-                          {res.docstring && (
-                            <span className="text-[11px] text-slate-400 truncate max-w-lg italic">
-                              "{res.docstring}"
-                            </span>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Code Snippet Box with Syntax Table */}
-                      <div className="mt-3 max-h-64 overflow-y-auto rounded-lg border border-slate-950 bg-slate-950/90 p-3 font-mono text-xs text-slate-200">
-                        <div className="table w-full">
-                          {res.source_code.split('\n').map((line, lIdx) => (
-                            <div key={lIdx} className="table-row hover:bg-slate-900/50">
-                              <span className="table-cell select-none pr-3 text-right text-slate-600 font-mono text-[10px] w-10">
-                                {res.start_line + lIdx}
+                        {/* Symbol signature or docstring if available */}
+                        {(res.symbol_name || res.docstring) && (
+                          <div className="mt-2.5 flex flex-wrap items-center gap-2 text-xs">
+                            {res.symbol_name && (
+                              <span className="font-mono text-xs text-indigo-300">
+                                symbol: <span className="font-bold">{res.symbol_name}</span>
                               </span>
-                              <span className="table-cell whitespace-pre font-mono text-slate-300 text-[11px]">
-                                {line || ' '}
+                            )}
+                            {res.docstring && (
+                              <span className="text-[11px] text-slate-400 truncate max-w-lg italic">
+                                "{res.docstring}"
                               </span>
-                            </div>
-                          ))}
+                            )}
+                          </div>
+                        )}
+
+                        {/* Code Snippet Box with Syntax Table */}
+                        <div className="mt-3 max-h-64 overflow-y-auto rounded-lg border border-slate-950 bg-slate-950/90 p-3 font-mono text-xs text-slate-200">
+                          <div className="table w-full">
+                            {res.source_code.split('\n').map((line, lIdx) => (
+                              <div key={lIdx} className="table-row hover:bg-slate-900/50">
+                                <span className="table-cell select-none pr-3 text-right text-slate-600 font-mono text-[10px] w-10">
+                                  {res.start_line + lIdx}
+                                </span>
+                                <span className="table-cell whitespace-pre font-mono text-slate-300 text-[11px]">
+                                  {line || ' '}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Action to view in explorer */}
+                        <div className="mt-3 flex justify-end">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedFilePath(res.file_path);
+                              setActiveTab('explorer');
+                            }}
+                            className="flex items-center space-x-1.5 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                          >
+                            <span>Open in Code Explorer</span>
+                            <ExternalLink className="h-3 w-3" />
+                          </button>
                         </div>
                       </div>
-
-                      {/* Action to view in explorer */}
-                      <div className="mt-3 flex justify-end">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedFilePath(res.file_path);
-                            setActiveTab('explorer');
-                          }}
-                          className="flex items-center space-x-1.5 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
-                        >
-                          <span>Open in Code Explorer</span>
-                          <ExternalLink className="h-3 w-3" />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                )}
               </div>
             )}
           </div>

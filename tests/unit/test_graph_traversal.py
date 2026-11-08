@@ -226,3 +226,4 @@ def test_missing_and_ambiguous_symbols(sample_graph_service):
     path_res = service.find_execution_paths(repo_id, "non_existent_1", "non_existent_2")
     assert path_res["found"] is False
     assert len(path_res["paths"]) == 0
+

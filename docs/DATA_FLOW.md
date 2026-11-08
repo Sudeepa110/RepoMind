@@ -138,4 +138,58 @@ sequenceDiagram
     Traversal->>Store: Reverse BFS along incoming callers and dependents
     Store-->>Frontend: Impacted symbols, direct callers, and affected files list
 ```
+
+---
+
+## 5. Hybrid Retrieval & Context Assembly Flow (Phase 6 Completed)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User
+    participant Frontend as React Dashboard (Hybrid Search)
+    participant API as FastAPI Router (/repositories/{id}/hybrid-search)
+    participant Retriever as HybridRetriever
+    participant Analyzer as QueryAnalyzer
+    participant Router as QueryRouter
+    participant Vector as SemanticSearchService (ChromaDB)
+    participant Keyword as KeywordSearchEngine (SQLite FTS5)
+    participant Graph as GraphTraversalService (NetworkX)
+    participant Fusion as ResultFusion (RRF k=60)
+    participant Assembler as ContextAssembler
+
+    User->>Frontend: Enter query: "who calls verify_token in this project?"
+    Frontend->>API: POST /api/v1/repositories/{id}/hybrid-search
+    API->>Retriever: hybrid_search(repo_id, request)
+
+    Note over Retriever,Analyzer: 1. Deterministic Query Analysis
+    Retriever->>Analyzer: analyze(query)
+    Analyzer-->>Retriever: Intents: [CALLERS], Symbols: ["verify_token"]
+
+    Note over Retriever,Router: 2. Strategy Plan Routing
+    Retriever->>Router: route(analysis, top_k)
+    Router-->>Retriever: Plan (Graph + Keyword + Vector enabled, weights: Graph 1.8)
+
+    Note over Retriever,Graph: 3. Multi-Engine Retrieval & Traversal
+    par Parallel Vector Search
+        Retriever->>Vector: search(query) -> dense semantic chunks
+    and Parallel Keyword Search
+        Retriever->>Keyword: search(query) -> BM25 identifier matches
+    and Parallel Graph Traversal
+        Retriever->>Graph: find_callers(repo_id, "verify_token")
+        Graph-->>Retriever: Caller relations: login, authorize [CONFIRMED]
+        Retriever->>Keyword: Lookup chunks for caller symbols
+    end
+
+    Note over Retriever,Fusion: 4. Reciprocal Rank Fusion & Deduplication
+    Retriever->>Fusion: fuse_and_rank(vector, keyword, graph, k=60, weights)
+    Fusion-->>Retriever: Deduplicated results with RRF scores & engine badges
+
+    Note over Retriever,Assembler: 5. Context Assembly
+    Retriever->>Assembler: assemble(query, ranked_results, graph_evidence)
+    Assembler-->>Retriever: Structured Markdown evidence + Verified citations table
+
+    Retriever-->>API: HybridRetrievalResponse
+    API-->>Frontend: JSON with execution times, intents, graph evidence & chunks
+    Frontend-->>User: Render strategy badges, RRF scores, code snippets & citations
 ```

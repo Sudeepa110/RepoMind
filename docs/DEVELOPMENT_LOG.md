@@ -274,3 +274,63 @@
    - Integration tests (`tests/integration/test_graph_integration.py`): 2 tests verifying end-to-end multi-language parsing -> graph construction -> reload -> traversal and API endpoints.
    - Full test suite: 64/64 tests passing 100% in 49.21s.
    - Frontend production build (`npm run build`) passing clean in 317ms.
+
+---
+
+## Phase 6: Hybrid Retrieval Engine (Vector RAG + GraphRAG + Keyword Search)
+
+**Date**: 2026-11-08  
+**Status**: COMPLETED & VERIFIED  
+**Backend Tests**: 93 / 93 passing (100% pass rate in 31.49s)  
+**Frontend Build**: Production build successful (399ms, 0 errors)  
+**Retrieval Benchmark**: Intent Accuracy: 100%, Hybrid Precision@1: 85.7% (vs Vector: 57.1%, Keyword: 42.9%), Recall@3: 85.7%, MRR: 0.857, Latency: ~8.3ms  
+
+### Key Accomplishments & Deliverables
+
+1. **Lightweight Query Intent Analyzer & Strategy Router (`backend/app/retrieval/query_analyzer.py` & `query_router.py`)**:
+   - Deterministic classification across 11 developer question intents: `SEMANTIC`, `EXACT_SYMBOL`, `CALLERS`, `CALLEES`, `DEPENDENCIES`, `INHERITANCE`, `EXECUTION_FLOW`, `IMPACT_ANALYSIS`, `ARCHITECTURE`, `CONFIG_OR_DOCS`, `UNKNOWN`.
+   - Heuristic extraction of backticked symbols, function invocation syntax, CamelCase, snake_case, and file paths with stop-word filtering.
+   - Intent-aware strategy routing with user override controls (`include_vector`, `include_graph`, `include_keyword`).
+
+2. **Repository-Scoped Keyword Search Engine (`backend/app/retrieval/keyword_search.py`)**:
+   - Zero-cost, 100% local BM25 ranking backed by SQLite FTS5 (`storage/keywords/{sanitized_repo_id}.db`).
+   - BM25 column weighting boosting `symbol_name` (10.0) and `file_path` (5.0) over body text.
+   - Compound identifier tokenization supporting dot notation (`DatabaseClient.connect`), prefix wildcards, and special character sanitization.
+   - Thread-safe transaction and connection lifecycle management ensuring instant Windows file lock release.
+   - Incremental indexing deduplication using SHA-256 `content_hash` matching.
+
+3. **Reciprocal Rank Fusion Engine (`backend/app/retrieval/result_fusion.py`)**:
+   - Calibrated RRF rank aggregation: $\text{RRF}(d) = \sum \frac{w_s}{60 + \text{rank}_s(d)}$.
+   - Multi-engine provenance tracking with combined badges (e.g. `HYBRID (VECTOR + KEYWORD)`).
+   - Dynamic intent weighting: boosts Graph for structural queries (`1.8`), boosts Keyword for exact symbols (`1.5`), and boosts Vector for conceptual semantic questions (`1.3`).
+   - Safe score normalization to $[0.0, 1.0]$.
+
+4. **Structured Context Assembler (`backend/app/retrieval/context_assembler.py`)**:
+   - Synthesizes ranked code chunks, exact file and line coordinates, caller/callee graph evidence, and provenance into a compact Markdown prompt block.
+   - Distinguishes `[CONFIRMED]` vs `[INFERRED (X% conf)]` structural links.
+   - Verified Evidence Citations table (`Rank | File Path | Line Range | Symbol | Source Engine | RRF Score`).
+   - Character budget bounding preventing token context overflows.
+
+5. **Unified Hybrid Retrieval Coordinator (`backend/app/retrieval/hybrid_retriever.py`)**:
+   - Master orchestrator combining Vector search, Graph traversal, and Keyword search with parallel execution, per-engine timing, and graceful degradation on individual engine failures.
+   - Role-aware graph candidate extraction prioritizing actual answers (callers for caller queries, callees for callee queries).
+
+6. **REST API Endpoints (`backend/app/api/hybrid_retrieval.py` & `main.py`)**:
+   - `POST /api/v1/repositories/{id}/hybrid-search`: Unified search returning ranked code chunks, graph evidence, assembled context, and latency diagnostics.
+   - `POST /api/v1/repositories/{id}/analyze-query`: Diagnostic query understanding endpoint returning classified intents and strategy recommendations.
+   - Full repository deletion cleanup in `repositories.py` (`keyword_search_engine.delete_repository`).
+
+7. **Frontend Hybrid Retrieval Dashboard (`frontend/src/pages/DashboardPreview.tsx`)**:
+   - Enhanced search tab with **Retrieval Strategy** toggle (`Hybrid Fusion (RRF)` vs `Dense Vector Only`).
+   - Engine filter checkboxes (`Vector`, `Graph`, `Keyword`).
+   - Query intent badges, strategy used pills, and per-engine latency breakdown.
+   - Interactive structural graph evidence cards (`CALLS`, `IMPORTS`, `IMPACTS`).
+   - Ranked code cards with multi-source provenance pills, RRF scores, and "Open in Code Explorer" action.
+   - Expandable **Structured Context Assembler** card with one-click "Copy Context" and verified citation table.
+
+8. **Automated Testing & Quantitative Retrieval Evaluation**:
+   - Unit tests (`tests/unit/test_query_analyzer.py`, `test_keyword_search.py`, `test_result_fusion.py`, `test_context_assembler.py`): 24 tests.
+   - Integration tests (`tests/integration/test_hybrid_retrieval.py`): 4 tests.
+   - Quantitative evaluation benchmark (`tests/evaluation/test_hybrid_evaluation.py`): Comparing Vector-only, Keyword-only, and Hybrid across 7 diverse query categories.
+   - Full test suite: **93/93 tests passing (100%) in 31.49s**.
+   - Frontend production build (`npm.cmd run build`): **0 errors, 399ms**.

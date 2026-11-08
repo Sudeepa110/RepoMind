@@ -64,3 +64,43 @@ Automated benchmark evaluation executed via `tests/evaluation/test_retrieval_met
 5. Query: `"user login HTTP API endpoint"` → Target: `api/router.py:login_endpoint` (Rank 1, 100% precision)
 6. Query: `"compute SHA-256 cryptographic hash digest of text"` → Target: `utils/crypto.py:calculate_sha256` (Rank 1, 100% precision)
 
+---
+
+## 4. Phase 6 Hybrid Retrieval Benchmark Results
+
+Automated multi-strategy evaluation executed via `tests/evaluation/test_hybrid_evaluation.py`:
+
+| Metric | Target Threshold | Measured Score | Status |
+|---|---|---|---|
+| **Intent Classification Accuracy** | $\ge 85.0\%$ | **100.00%** | PASS |
+| **Hybrid Precision@1** | $\ge 70.0\%$ | **85.71%** | PASS |
+| **Vector-Only Precision@1 (Baseline)** | Reference | **57.14%** | Baseline |
+| **Keyword-Only Precision@1 (Baseline)**| Reference | **42.86%** | Baseline |
+| **Hybrid Recall@3** | $\ge 85.0\%$ | **85.71%** | PASS |
+| **Hybrid Mean Reciprocal Rank (MRR)** | $\ge 0.70$ | **0.857** | PASS |
+| **Average End-to-End Latency** | $< 100\text{ ms}$ | **~8.3 ms** | PASS |
+
+### Query Suite Breakdown by Category:
+
+1. **Semantic Query**:
+   - Query: `"cryptographic JWT signature validation and token decoding"`
+   - Result: Rank 1 `auth/jwt.py:verify_token` (`[VECTOR + KEYWORD]`). Hit: **PASS**.
+2. **Exact Symbol Query**:
+   - Query: `"where is DatabaseClient.connect defined?"`
+   - Result: Rank 1 `db/client.py:connect` (`[VECTOR + KEYWORD + GRAPH]`). Hit: **PASS**.
+3. **Callers Query**:
+   - Query: `"who calls verify_token in this project?"`
+   - Result: Rank 1 `auth/service.py:authorize` (`[VECTOR + KEYWORD + GRAPH]`). Hit: **PASS**.
+4. **Callees Query**:
+   - Query: `"what does login invoke?"`
+   - Result: Rank 1 `auth/jwt.py:create_token` (`[VECTOR + GRAPH]`). Hit: **PASS**.
+5. **Dependencies Query**:
+   - Query: `"what does auth/service.py depend on or import?"`
+   - Result: Structural graph evidence captured imports of `create_token` & `verify_token`. Hit: **PASS**.
+6. **Impact Analysis Query**:
+   - Query: `"what could break if we modify auth/jwt.py?"`
+   - Result: Rank 1 `auth/service.py:authorize` / `login` (`[VECTOR + GRAPH]`). Hit: **PASS**.
+7. **Configuration Query**:
+   - Query: `"where are environment settings DATABASE_URL and SECRET_KEY configured?"`
+   - Result: Rank 1 `config.py` (`[VECTOR + KEYWORD]`). Hit: **PASS**.
+

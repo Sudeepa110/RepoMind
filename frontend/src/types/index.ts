@@ -249,4 +249,96 @@ export interface SubgraphResponse {
   edges: GraphEdgeItem[];
 }
 
+export interface QueryAnalysisResult {
+  original_query: string;
+  intents: string[];
+  extracted_symbols: string[];
+  extracted_file_paths: string[];
+  confidence: number;
+  recommended_strategies: string[];
+  intent_reasons: Record<string, string>;
+}
+
+export interface UnifiedSearchResult {
+  chunk_id: string;
+  repository_id: string;
+  file_path: string;
+  symbol_id?: string;
+  symbol_name?: string;
+  symbol_type?: string;
+  language: string;
+  start_line: number;
+  end_line: number;
+  source_code: string;
+  signature?: string;
+  docstring?: string;
+  context_header?: string;
+  retrieval_source: string;
+  sources: string[];
+  original_score: number;
+  normalized_score: number;
+  rrf_score: number;
+  confidence: number;
+  resolution_status?: string;
+  properties?: Record<string, any>;
+}
+
+export interface GraphEvidence {
+  relationship_type: string;
+  source_node_id: string;
+  source_name: string;
+  target_node_id: string;
+  target_name: string;
+  confidence: number;
+  is_confirmed: boolean;
+  call_count: number;
+  lines: number[];
+  file_path?: string;
+  description?: string;
+}
+
+export interface AssembledContext {
+  summary: string;
+  total_code_chunks: number;
+  total_graph_relationships: number;
+  sources_used: string[];
+  formatted_context: string;
+  citations: Array<{
+    rank: number;
+    file_path: string;
+    start_line: number;
+    end_line: number;
+    symbol_name?: string;
+    symbol_type?: string;
+    sources: string[];
+    rrf_score: number;
+  }>;
+}
+
+export interface HybridSearchRequest {
+  query: string;
+  top_k?: number;
+  include_vector?: boolean;
+  include_graph?: boolean;
+  include_keyword?: boolean;
+  language?: string;
+  file_path?: string;
+  symbol_type?: string;
+  rrf_k?: number;
+}
+
+export interface HybridRetrievalResponse {
+  query: string;
+  repository_id: string;
+  intents: string[];
+  strategies_used: string[];
+  total_results: number;
+  results: UnifiedSearchResult[];
+  graph_evidence: GraphEvidence[];
+  assembled_context: AssembledContext;
+  execution_times: Record<string, number>;
+  warnings: string[];
+  diagnostics: Record<string, any>;
+}
+
 export type AppView = 'landing' | 'dashboard';
