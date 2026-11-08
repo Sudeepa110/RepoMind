@@ -34,6 +34,12 @@ FUNC_CALL_PATTERN = re.compile(r"\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\(\)")
 # Regex pattern for camelCase / PascalCase identifiers
 CAMEL_CASE_PATTERN = re.compile(r"\b([A-Z][a-z0-9]+(?:[A-Z][a-z0-9]+)+)\b")
 
+# Regex pattern for lowerCamelCase identifiers (e.g. generateAccessToken, verifyJwtToken)
+LOWER_CAMEL_CASE_PATTERN = re.compile(r"\b([a-z][a-z0-9]*[A-Z][a-zA-Z0-9]*)\b")
+
+# Regex pattern for qualified identifiers: Class.method (e.g. AuthController.login)
+QUALIFIED_IDENTIFIER_PATTERN = re.compile(r"\b([a-zA-Z_][a-zA-Z0-9_]*\.[a-zA-Z_][a-zA-Z0-9_]*)\b")
+
 # Regex pattern for snake_case identifiers
 SNAKE_CASE_PATTERN = re.compile(r"\b([a-z0-9]+(?:_[a-z0-9]+)+)\b")
 
@@ -74,7 +80,7 @@ class QueryAnalyzer:
 
         # 3. Check for Caller queries
         caller_match = re.search(
-            r"\b(who|which (functions?|methods?|callers?|symbols?))\s+(calls?|invokes?)|callers?\s+of|where\s+is\s+.*called\b",
+            r"\b(who|which|what\s+(?:functions?|methods?|callers?|symbols?))\s+(?:calls?|invokes?)|callers?\s+of|where\s+is\s+.*called|what\s+calls\b",
             q_lower,
         )
         if caller_match:
@@ -83,7 +89,7 @@ class QueryAnalyzer:
 
         # 4. Check for Callee queries
         callee_match = re.search(
-            r"\b(what|which (functions?|methods?))\s+(does\s+.*\s+(call|invoke)|is\s+called\s+by)|callees?\s+of|what\s+does\s+.*\s+invoke\b",
+            r"\b(?:what|which\s+(?:functions?|methods?))\s+(?:does\s+.*\s+(?:call|invoke)|is\s+called\s+by)|callees?\s+of|what\s+does\s+.*\s+(?:call|invoke)\b",
             q_lower,
         )
         if callee_match:
@@ -189,21 +195,35 @@ class QueryAnalyzer:
         for m in BACKTICK_PATTERN.finditer(text):
             found.append(m.group(1))
 
-        # 2. Function calls foo()
+        # 2. Qualified identifiers Class.method
+        for m in QUALIFIED_IDENTIFIER_PATTERN.finditer(text):
+            full_sym = m.group(1)
+            found.append(full_sym)
+            for part in full_sym.split("."):
+                if len(part) >= 3 and part not in COMMON_ENGLISH_WORDS:
+                    found.append(part)
+
+        # 3. Function calls foo()
         for m in FUNC_CALL_PATTERN.finditer(text):
             found.append(m.group(1))
 
-        # 3. CamelCase / PascalCase
+        # 4. lowerCamelCase (e.g. generateAccessToken, verifyJwtToken, findOwnerById)
+        for m in LOWER_CAMEL_CASE_PATTERN.finditer(text):
+            sym = m.group(1)
+            if sym not in COMMON_ENGLISH_WORDS and len(sym) >= 4:
+                found.append(sym)
+
+        # 5. CamelCase / PascalCase
         for m in CAMEL_CASE_PATTERN.finditer(text):
             found.append(m.group(1))
 
-        # 4. snake_case
+        # 6. snake_case
         for m in SNAKE_CASE_PATTERN.finditer(text):
             sym = m.group(1)
             if sym not in STOP_TERMS and len(sym) >= 4:
                 found.append(sym)
 
-        # 5. Capitalized class/type identifiers (e.g. Flask, Config, Scaffold)
+        # 7. Capitalized class/type identifiers (e.g. Flask, Config, Scaffold)
         for m in CLASS_IDENTIFIER_PATTERN.finditer(text):
             sym = m.group(1)
             if sym not in COMMON_ENGLISH_WORDS and len(sym) >= 3:

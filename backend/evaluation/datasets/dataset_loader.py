@@ -536,3 +536,32 @@ public class OwnerController {
     )
 
     return target_dir
+
+
+def build_real_world_ky_subset(target_dir: Path) -> Path:
+    """Provisions authentic pinned subset of sindresorhus/ky (commit 3541888)."""
+    target_dir.mkdir(parents=True, exist_ok=True)
+    cache_file = Path(__file__).parent / "real_world_ky_files.json"
+    if cache_file.exists():
+        with open(cache_file, "r", encoding="utf-8") as f:
+            files_dict = json.load(f)
+        for rel_path, content in files_dict.items():
+            dest = target_dir / rel_path
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text(content, encoding="utf-8")
+    return target_dir
+
+
+def build_real_world_petclinic_subset(target_dir: Path) -> Path:
+    """Provisions authentic pinned subset of spring-projects/spring-petclinic (commit 500158f)."""
+    target_dir.mkdir(parents=True, exist_ok=True)
+    cache_file = Path(__file__).parent / "real_world_petclinic_files.json"
+    if cache_file.exists():
+        with open(cache_file, "r", encoding="utf-8") as f:
+            files_dict = json.load(f)
+        for rel_path, content in files_dict.items():
+            dest = target_dir / rel_path
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text(content, encoding="utf-8")
+    return target_dir
+

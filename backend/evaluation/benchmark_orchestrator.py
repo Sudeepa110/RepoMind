@@ -50,6 +50,8 @@ from backend.evaluation.datasets.dataset_loader import (
     build_real_world_flask_subset,
     build_synthetic_ts_express_repo,
     build_synthetic_java_petclinic_repo,
+    build_real_world_ky_subset,
+    build_real_world_petclinic_subset,
 )
 from backend.evaluation.retrieval_benchmark import RetrievalBenchmarkRunner
 from backend.evaluation.citation_evaluator import CitationAndGroundingEvaluator
@@ -79,12 +81,16 @@ async def run_full_evaluation_suite(
             auth_repo_dir = tmp_path / "synthetic_auth_repo"
             flask_repo_dir = tmp_path / "real_world_flask_subset"
             ts_repo_dir = tmp_path / "synthetic_ts_express_repo"
+            ky_repo_dir = tmp_path / "real_world_ky_subset"
             java_repo_dir = tmp_path / "synthetic_java_petclinic_repo"
+            petclinic_repo_dir = tmp_path / "real_world_petclinic_subset"
 
             build_synthetic_auth_repo(auth_repo_dir)
             build_real_world_flask_subset(flask_repo_dir)
             build_synthetic_ts_express_repo(ts_repo_dir)
+            build_real_world_ky_subset(ky_repo_dir)
             build_synthetic_java_petclinic_repo(java_repo_dir)
+            build_real_world_petclinic_subset(petclinic_repo_dir)
         print("Stage 1 complete: datasets provisioned.", flush=True)
 
         # Initialize engines
@@ -138,7 +144,9 @@ async def run_full_evaluation_suite(
             ("synthetic_auth_repo", auth_repo_dir, "auth_commit_001"),
             ("real_world_flask_subset", flask_repo_dir, "e559fa7"),
             ("synthetic_ts_express_repo", ts_repo_dir, "b1928cf"),
+            ("real_world_ky_subset", ky_repo_dir, "3541888"),
             ("synthetic_java_petclinic_repo", java_repo_dir, "e439fd2"),
+            ("real_world_petclinic_subset", petclinic_repo_dir, "500158f"),
         ]
 
         indexing_stats = {}
@@ -353,7 +361,7 @@ async def run_full_evaluation_suite(
         full_results = {
             "metadata": {
                 "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                "phase": "Phase 9: Evaluation Framework, Real-World Benchmarking & Performance Optimization",
+                "phase": "Phase 9.2: Cross-Language Retrieval Validation & Final Quality Gate",
                 "hardware": perf_summary["hardware_environment"],
                 "total_queries_evaluated": len(queries),
             },

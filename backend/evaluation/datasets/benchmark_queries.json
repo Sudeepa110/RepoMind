@@ -836,5 +836,361 @@
     "should_abstain": false,
     "is_injection": false,
     "intent": "EXACT_SYMBOL"
+  },
+  {
+    "query_id": "Q38_TS_EXECUTION_FLOW_REGISTER_ROUTES",
+    "query": "Trace the execution flow when registerRoutes is called.",
+    "repo_name": "synthetic_ts_express_repo",
+    "category": "EXECUTION_FLOW",
+    "expected_files": [
+      "src/routes/api.routes.ts",
+      "src/controllers/auth.controller.ts",
+      "src/middleware/authenticate.middleware.ts"
+    ],
+    "expected_symbols": [
+      "registerRoutes",
+      "login",
+      "authenticateMiddleware"
+    ],
+    "expected_line_ranges": [
+      [
+        4,
+        8
+      ],
+      [
+        9,
+        13
+      ],
+      [
+        3,
+        6
+      ]
+    ],
+    "should_abstain": false,
+    "is_injection": false,
+    "intent": "EXECUTION_FLOW"
+  },
+  {
+    "query_id": "Q39_TS_IMPACT_TOKEN_SERVICE",
+    "query": "What is the impact and blast radius if TokenService.generateAccessToken is modified?",
+    "repo_name": "synthetic_ts_express_repo",
+    "category": "IMPACT_ANALYSIS",
+    "expected_files": [
+      "src/controllers/auth.controller.ts",
+      "src/routes/api.routes.ts"
+    ],
+    "expected_symbols": [
+      "login",
+      "registerRoutes"
+    ],
+    "expected_line_ranges": [
+      [
+        9,
+        13
+      ],
+      [
+        4,
+        8
+      ]
+    ],
+    "should_abstain": false,
+    "is_injection": false,
+    "intent": "IMPACT_ANALYSIS"
+  },
+  {
+    "query_id": "Q40_TS_ABSTAIN_CASSANDRA_REPLICATION",
+    "query": "How is Cassandra cluster partitioning and token ring replication configured?",
+    "repo_name": "synthetic_ts_express_repo",
+    "category": "OUT_OF_SCOPE",
+    "expected_files": [],
+    "expected_symbols": [],
+    "expected_line_ranges": [],
+    "should_abstain": true,
+    "is_injection": false,
+    "intent": "SEMANTIC"
+  },
+  {
+    "query_id": "Q41_JAVA_EXECUTION_FLOW_PROCESS_FIND",
+    "query": "Trace the execution flow when processFindForm is invoked in OwnerController.",
+    "repo_name": "synthetic_java_petclinic_repo",
+    "category": "EXECUTION_FLOW",
+    "expected_files": [
+      "src/main/java/org/repomind/controller/OwnerController.java",
+      "src/main/java/org/repomind/service/ClinicService.java",
+      "src/main/java/org/repomind/repository/OwnerRepository.java"
+    ],
+    "expected_symbols": [
+      "processFindForm",
+      "findOwnerById",
+      "findById"
+    ],
+    "expected_line_ranges": [
+      [
+        14,
+        20
+      ],
+      [
+        14,
+        18
+      ],
+      [
+        8,
+        12
+      ]
+    ],
+    "should_abstain": false,
+    "is_injection": false,
+    "intent": "EXECUTION_FLOW"
+  },
+  {
+    "query_id": "Q42_JAVA_IMPACT_FIND_OWNER_BY_ID",
+    "query": "What is the blast radius if findOwnerById in ClinicService is changed?",
+    "repo_name": "synthetic_java_petclinic_repo",
+    "category": "IMPACT_ANALYSIS",
+    "expected_files": [
+      "src/main/java/org/repomind/controller/OwnerController.java"
+    ],
+    "expected_symbols": [
+      "processFindForm"
+    ],
+    "expected_line_ranges": [
+      [
+        14,
+        20
+      ]
+    ],
+    "should_abstain": false,
+    "is_injection": false,
+    "intent": "IMPACT_ANALYSIS"
+  },
+  {
+    "query_id": "Q43_JAVA_ABSTAIN_RABBITMQ_BROKER",
+    "query": "How is RabbitMQ distributed message broker exchange routing configured?",
+    "repo_name": "synthetic_java_petclinic_repo",
+    "category": "OUT_OF_SCOPE",
+    "expected_files": [],
+    "expected_symbols": [],
+    "expected_line_ranges": [],
+    "should_abstain": true,
+    "is_injection": false,
+    "intent": "SEMANTIC"
+  },
+  {
+    "query_id": "Q44_KY_EXACT_SYMBOL_HTTP_ERROR",
+    "query": "Where is the HTTPError class defined in Ky?",
+    "repo_name": "real_world_ky_subset",
+    "category": "EXACT_SYMBOL",
+    "expected_files": [
+      "source/errors/HTTPError.ts"
+    ],
+    "expected_symbols": [
+      "HTTPError"
+    ],
+    "expected_line_ranges": [
+      [
+        8,
+        30
+      ]
+    ],
+    "should_abstain": false,
+    "is_injection": false,
+    "intent": "EXACT_SYMBOL"
+  },
+  {
+    "query_id": "Q45_KY_INTERFACE_OPTIONS",
+    "query": "Find the definition of the Options interface in Ky.",
+    "repo_name": "real_world_ky_subset",
+    "category": "CLASS_OR_INTERFACE",
+    "expected_files": [
+      "source/types/options.ts"
+    ],
+    "expected_symbols": [
+      "Options"
+    ],
+    "expected_line_ranges": [
+      [
+        1,
+        10
+      ]
+    ],
+    "should_abstain": false,
+    "is_injection": false,
+    "intent": "EXACT_SYMBOL"
+  },
+  {
+    "query_id": "Q46_KY_DEPENDENCIES_HTTP_ERROR",
+    "query": "What modules does source/errors/HTTPError.ts import?",
+    "repo_name": "real_world_ky_subset",
+    "category": "DEPENDENCIES",
+    "expected_files": [
+      "source/errors/KyError.ts",
+      "source/types/options.ts"
+    ],
+    "expected_symbols": [
+      "KyError",
+      "Options"
+    ],
+    "expected_line_ranges": [
+      [
+        1,
+        6
+      ]
+    ],
+    "should_abstain": false,
+    "is_injection": false,
+    "intent": "DEPENDENCIES"
+  },
+  {
+    "query_id": "Q47_KY_SEMANTIC_RESPONSE_ERRORS",
+    "query": "How does Ky handle HTTP error status codes and response bodies?",
+    "repo_name": "real_world_ky_subset",
+    "category": "SEMANTIC",
+    "expected_files": [
+      "source/errors/HTTPError.ts"
+    ],
+    "expected_symbols": [
+      "HTTPError"
+    ],
+    "expected_line_ranges": [
+      [
+        8,
+        30
+      ]
+    ],
+    "should_abstain": false,
+    "is_injection": false,
+    "intent": "SEMANTIC"
+  },
+  {
+    "query_id": "Q48_KY_ABSTAIN_POSTGRES_POOL",
+    "query": "How does Ky manage PostgreSQL database connection pools?",
+    "repo_name": "real_world_ky_subset",
+    "category": "OUT_OF_SCOPE",
+    "expected_files": [],
+    "expected_symbols": [],
+    "expected_line_ranges": [],
+    "should_abstain": true,
+    "is_injection": false,
+    "intent": "SEMANTIC"
+  },
+  {
+    "query_id": "Q49_PETCLINIC_EXACT_SYMBOL_OWNER_REPO",
+    "query": "Where is the OwnerRepository interface defined in PetClinic?",
+    "repo_name": "real_world_petclinic_subset",
+    "category": "EXACT_SYMBOL",
+    "expected_files": [
+      "src/main/java/org/springframework/samples/petclinic/owner/OwnerRepository.java"
+    ],
+    "expected_symbols": [
+      "OwnerRepository"
+    ],
+    "expected_line_ranges": [
+      [
+        20,
+        60
+      ]
+    ],
+    "should_abstain": false,
+    "is_injection": false,
+    "intent": "EXACT_SYMBOL"
+  },
+  {
+    "query_id": "Q50_PETCLINIC_CLASS_PET_CONTROLLER",
+    "query": "Find the definition of the PetController class.",
+    "repo_name": "real_world_petclinic_subset",
+    "category": "CLASS_OR_INTERFACE",
+    "expected_files": [
+      "src/main/java/org/springframework/samples/petclinic/owner/PetController.java"
+    ],
+    "expected_symbols": [
+      "PetController"
+    ],
+    "expected_line_ranges": [
+      [
+        35,
+        100
+      ]
+    ],
+    "should_abstain": false,
+    "is_injection": false,
+    "intent": "EXACT_SYMBOL"
+  },
+  {
+    "query_id": "Q51_PETCLINIC_CALLERS_FIND_BY_ID",
+    "query": "What methods call OwnerRepository.findById in PetClinic?",
+    "repo_name": "real_world_petclinic_subset",
+    "category": "CALLERS",
+    "expected_files": [
+      "src/main/java/org/springframework/samples/petclinic/owner/PetController.java"
+    ],
+    "expected_symbols": [
+      "findOwner"
+    ],
+    "expected_line_ranges": [
+      [
+        55,
+        65
+      ]
+    ],
+    "should_abstain": false,
+    "is_injection": false,
+    "intent": "CALLERS"
+  },
+  {
+    "query_id": "Q52_PETCLINIC_DEPENDENCIES_PET_CONTROLLER",
+    "query": "What classes does PetController depend on?",
+    "repo_name": "real_world_petclinic_subset",
+    "category": "DEPENDENCIES",
+    "expected_files": [
+      "src/main/java/org/springframework/samples/petclinic/owner/OwnerRepository.java",
+      "src/main/java/org/springframework/samples/petclinic/owner/Pet.java"
+    ],
+    "expected_symbols": [
+      "OwnerRepository",
+      "Pet"
+    ],
+    "expected_line_ranges": [
+      [
+        20,
+        40
+      ]
+    ],
+    "should_abstain": false,
+    "is_injection": false,
+    "intent": "DEPENDENCIES"
+  },
+  {
+    "query_id": "Q53_PETCLINIC_SEMANTIC_PET_VALIDATION",
+    "query": "How are pet entities created and validated in PetClinic form handling?",
+    "repo_name": "real_world_petclinic_subset",
+    "category": "SEMANTIC",
+    "expected_files": [
+      "src/main/java/org/springframework/samples/petclinic/owner/PetController.java"
+    ],
+    "expected_symbols": [
+      "PetController",
+      "processCreationForm"
+    ],
+    "expected_line_ranges": [
+      [
+        70,
+        110
+      ]
+    ],
+    "should_abstain": false,
+    "is_injection": false,
+    "intent": "SEMANTIC"
+  },
+  {
+    "query_id": "Q54_PETCLINIC_ABSTAIN_KAFKA_BROKER",
+    "query": "How is Apache Kafka topic partitioning and event streaming configured in PetClinic?",
+    "repo_name": "real_world_petclinic_subset",
+    "category": "OUT_OF_SCOPE",
+    "expected_files": [],
+    "expected_symbols": [],
+    "expected_line_ranges": [],
+    "should_abstain": true,
+    "is_injection": false,
+    "intent": "SEMANTIC"
   }
 ]

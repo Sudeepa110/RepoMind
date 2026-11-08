@@ -32,6 +32,13 @@ def clean_fts_token(term: str) -> str:
     return " ".join(clean.split())
 
 
+FTS_COMMON_STOP_WORDS = {
+    "in", "is", "to", "on", "at", "by", "for", "with", "from", "of", "and", "or",
+    "the", "a", "an", "how", "what", "where", "which", "who", "why", "does", "do",
+    "did", "this", "that", "it", "not", "be", "as", "are", "was", "were", "can",
+}
+
+
 class KeywordSearchEngine:
     """
     Repository-isolated keyword retrieval engine backed by SQLite FTS5.
@@ -212,11 +219,19 @@ class KeywordSearchEngine:
         if not tokens:
             return []
 
-        # Build FTS match expression: match exact tokens and prefix matches
+        # Build FTS match expression: match exact tokens and prefix matches (excluding stop words from prefix expansion)
         match_clauses = []
         for t in tokens:
-            match_clauses.append(f'"{t}"')
-            match_clauses.append(f'"{t}"*')
+            t_low = t.lower()
+            if t_low not in FTS_COMMON_STOP_WORDS:
+                match_clauses.append(f'"{t}"')
+                if len(t) >= 3:
+                    match_clauses.append(f'"{t}"*')
+            elif len(t) >= 3:
+                match_clauses.append(f'"{t}"')
+
+        if not match_clauses:
+            match_clauses = [f'"{t}"' for t in tokens]
 
         fts_query = " OR ".join(match_clauses)
 

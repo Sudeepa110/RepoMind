@@ -182,16 +182,21 @@ class HybridRetriever:
         if plan.graph_enabled:
             t0 = time.perf_counter()
             try:
-                # Find candidate symbols to query in graph
+                # Find candidate symbols and file paths to query in graph
                 candidate_symbols = list(plan.target_symbols)
+                candidate_targets = list(candidate_symbols)
+                if analysis.extracted_file_paths:
+                    for fp in analysis.extracted_file_paths:
+                        if fp not in candidate_targets:
+                            candidate_targets.append(fp)
 
-                # If no symbols extracted from query, use top symbols from keyword or vector results
-                if not candidate_symbols:
+                # If no symbols or paths extracted from query, use top symbols from keyword or vector results
+                if not candidate_targets:
                     for item in (keyword_results + vector_results)[:3]:
-                        if item.symbol_name and item.symbol_name not in candidate_symbols:
-                            candidate_symbols.append(item.symbol_name)
+                        if item.symbol_name and item.symbol_name not in candidate_targets:
+                            candidate_targets.append(item.symbol_name)
 
-                for sym in candidate_symbols[:3]:
+                for sym in candidate_targets[:4]:
                     # Callers
                     if "callers" in plan.graph_operations:
                         c_res = self.graph_service.find_callers(repository_id, sym)
@@ -291,6 +296,9 @@ class HybridRetriever:
                     elif QueryIntent.DEPENDENCIES in analysis.intents:
                         if ev.target_name and ev.target_name not in evidence_symbols:
                             evidence_symbols.append(ev.target_name)
+                            raw_mod = ev.target_name.split("/")[-1].split(".")[0]
+                            if raw_mod and len(raw_mod) >= 3 and raw_mod not in evidence_symbols:
+                                evidence_symbols.append(raw_mod)
                         if ev.file_path and ev.file_path not in evidence_symbols:
                             evidence_symbols.append(ev.file_path)
                     elif QueryIntent.IMPACT_ANALYSIS in analysis.intents:
@@ -349,9 +357,9 @@ class HybridRetriever:
             "GRAPH": 1.0,
         }
         if any(i in analysis.intents for i in (QueryIntent.CALLERS, QueryIntent.CALLEES, QueryIntent.DEPENDENCIES, QueryIntent.IMPACT_ANALYSIS, QueryIntent.INHERITANCE)):
-            weights["GRAPH"] = 1.25
-            weights["KEYWORD"] = 1.0
-            weights["VECTOR"] = 0.95
+            weights["GRAPH"] = 1.5
+            weights["KEYWORD"] = 0.85
+            weights["VECTOR"] = 0.85
         elif QueryIntent.EXACT_SYMBOL in analysis.intents:
             weights["KEYWORD"] = 1.25
             weights["VECTOR"] = 1.0

@@ -228,4 +228,62 @@ async def test_hybrid_cache_invalidation_behavior(sample_hybrid_repo):
     assert len(hybrid_retriever._response_cache) == 0
 
 
+@pytest.mark.asyncio
+async def test_hybrid_cross_repository_isolation(sample_hybrid_repo):
+    """Verifies that retrieval and response caches maintain strict multi-tenant repository isolation."""
+    repo_a = sample_hybrid_repo["repo_id"]
+    repo_b = "isolated_test_repo_b"
+
+    chunk_b = CodeChunk(
+        chunk_id=f"chunk:{repo_b}:secret.py#unique_secret_method_b",
+        repository_id=repo_b,
+        file_path="secret.py",
+        start_line=1,
+        end_line=5,
+        source_code="def unique_secret_method_b(): return 'TOP_SECRET_B'",
+        full_content="def unique_secret_method_b(): return 'TOP_SECRET_B'",
+        symbol_name="unique_secret_method_b",
+        symbol_type="Function",
+        language="python",
+        content_hash="hash_b_123",
+        signature="def unique_secret_method_b()",
+        docstring="Secret method in repo B",
+    )
+
+    try:
+        # Index chunk into repo_b
+        semantic_search_service.index_chunks(repo_b, [chunk_b], force_reindex=True)
+        keyword_search_engine.index_chunks(repo_b, [chunk_b], force_reindex=True)
+
+        # 1. Search repo_a for repo_b's secret symbol
+        res_a = hybrid_retriever.hybrid_search(
+            repo_a,
+            HybridSearchRequest(query="unique_secret_method_b", top_k=5),
+        )
+        for r in res_a.results:
+            assert r.repository_id == repo_a
+            assert r.symbol_name != "unique_secret_method_b"
+
+        # 2. Search repo_b for its own symbol
+        res_b = hybrid_retriever.hybrid_search(
+            repo_b,
+            HybridSearchRequest(query="unique_secret_method_b", top_k=5),
+        )
+        assert res_b.total_results >= 1
+        assert res_b.results[0].repository_id == repo_b
+        assert res_b.results[0].symbol_name == "unique_secret_method_b"
+
+        # 3. Verify cache keys are separated by repository_id
+        assert repo_a in hybrid_retriever._response_cache
+        assert repo_b in hybrid_retriever._response_cache
+        assert hybrid_retriever._response_cache[repo_a] != hybrid_retriever._response_cache[repo_b]
+
+    finally:
+        semantic_search_service.delete_repository(repo_b)
+        keyword_search_engine.delete_repository(repo_b)
+        networkx_graph_store.delete(repo_b)
+        hybrid_retriever.invalidate_cache(repo_b)
+
+
+
 
