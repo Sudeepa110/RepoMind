@@ -48,6 +48,11 @@ class LocalSentenceTransformerService(BaseEmbeddingService):
             if self._model is not None:
                 return
 
+            import os
+            # Ensure offline fast-load without blocking network retry timeouts
+            os.environ.setdefault("HF_HUB_OFFLINE", "1")
+            os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
+
             from sentence_transformers import SentenceTransformer
 
             target_device = self._determine_device()

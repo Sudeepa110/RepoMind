@@ -367,5 +367,35 @@ Evaluated on multi-file test repositories:
 - **Citation Validity on Intelligence Reports**: **100.0%**
 - **Frontend Build Status**: **0 errors (416ms)**
 
+---
+
+## 9. Phase 9: Evaluation Framework, Real-World Benchmarking & Performance Optimization
+
+Phase 9 establishes a reproducible evaluation engine and empirical benchmarking system directly integrated into RepoMind:
+
+1. **4-Way Multi-Strategy Retrieval Benchmark (`backend/evaluation/retrieval_benchmark.py`)**:
+   - Compares Vector-only, Keyword-only, Graph-only, and Hybrid retrieval across 25 standardized queries and 102 query runs.
+   - Evaluates:
+     - $\text{Precision@}k$ ($k \in \{1, 3, 5\}$)
+     - $\text{Recall@}k$ ($k \in \{3, 5\}$)
+     - Mean Reciprocal Rank (MRR)
+     - Normalized Discounted Cumulative Gain ($\text{nDCG@}5$)
+     - File Accuracy & Symbol Accuracy
+     - Query Latency percentiles (p50, p95, p99)
+
+2. **Grounding & Safety Verification Engine (`backend/evaluation/citation_evaluator.py`)**:
+   - Decoupled Citation Validity (100.0% verified against evidence) vs Claim-Level Citation Coverage (100.0% of declarative statements backed by citations).
+   - Honest Abstention on unindexed topics with zero hallucinations.
+   - Adversarial Prompt Injection Defense (100.0% rejection of system prompt override payloads).
+
+3. **In-Memory Performance Optimizations**:
+   - **Knowledge Graph Inverted Indices**: $O(1)$ constant-time symbol lookups in `NetworkXGraphStore` (measured **0.033 ms**).
+   - **Thread-Safe LRU Query Cache**: Sub-millisecond response caching in `HybridRetriever` (measured **0.027 ms** cache hit).
+
+4. **Interactive Evaluation Dashboard (`frontend/src/components/EvaluationDashboard.tsx`)**:
+   - Full React UI displaying 4-way comparison tables, hardware profile, pipeline stage durations, grounding & safety stats, and intelligence benchmarks.
+   - Live on-demand benchmark runner communicating via `/api/v1/evaluation/run`.
+
+
 
 

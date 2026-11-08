@@ -53,7 +53,7 @@ class ChromaVectorStore(BaseVectorStore):
     """
 
     def __init__(self, persist_dir: Optional[Path] = None) -> None:
-        self.persist_dir = persist_dir or settings.CHROMA_PERSIST_DIR
+        self.persist_dir = Path(persist_dir) if persist_dir else settings.CHROMA_PERSIST_DIR
         self.persist_dir.mkdir(parents=True, exist_ok=True)
 
         logger.info(f"Initializing ChromaDB PersistentClient at {self.persist_dir}")

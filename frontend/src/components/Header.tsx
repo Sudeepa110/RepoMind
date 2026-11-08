@@ -51,6 +51,16 @@ export const Header: React.FC<HeaderProps> = ({
           >
             Overview
           </button>
+          <button
+            onClick={() => onNavigate('evaluation')}
+            className={`text-sm font-medium transition-colors ${
+              currentView === 'evaluation'
+                ? 'text-indigo-400 font-semibold'
+                : 'text-slate-300 hover:text-white'
+            }`}
+          >
+            Benchmarks (Phase 9)
+          </button>
           <a
             href="#how-it-works"
             className="text-sm font-medium text-slate-300 transition-colors hover:text-white"

@@ -35,9 +35,11 @@ import {
   Bot,
   User,
   StopCircle,
+  BarChart3,
 } from 'lucide-react';
 import { api } from '../services/api';
 import { IntelligenceWorkspace } from '../components/IntelligenceWorkspace';
+import { EvaluationDashboard } from '../components/EvaluationDashboard';
 import type {
   ValidationResult,
   RepositoryDetail,
@@ -94,7 +96,7 @@ export const DashboardPreview: React.FC<DashboardPreviewProps> = ({
   validation,
   onBack,
 }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'explorer' | 'search' | 'graph' | 'chat' | 'intelligence'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'explorer' | 'search' | 'graph' | 'chat' | 'intelligence' | 'evaluation'>('overview');
   const [status, setStatus] = useState<IndexingStatus | null>(null);
   const [details, setDetails] = useState<RepositoryDetail | null>(null);
   const [tree, setTree] = useState<TreeNode | null>(null);
@@ -965,6 +967,21 @@ export const DashboardPreview: React.FC<DashboardPreviewProps> = ({
           <span>Intelligence & Impact</span>
           <span className="rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm">
             Phase 8
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('evaluation')}
+          className={`flex items-center space-x-2 border-b-2 px-3 py-2.5 text-sm font-medium transition-colors ${
+            activeTab === 'evaluation'
+              ? 'border-indigo-500 text-indigo-400'
+              : 'border-transparent text-slate-400 hover:text-white'
+          }`}
+        >
+          <BarChart3 className="h-4 w-4" />
+          <span>Evaluation & Benchmarks</span>
+          <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-300 shadow-sm">
+            Phase 9
           </span>
         </button>
       </div>
@@ -2829,6 +2846,11 @@ export const DashboardPreview: React.FC<DashboardPreviewProps> = ({
               setSelectedFilePath(path);
             }}
           />
+        )}
+
+        {/* EVALUATION & BENCHMARKS TAB (PHASE 9) */}
+        {activeTab === 'evaluation' && (
+          <EvaluationDashboard />
         )}
       </div>
     </div>

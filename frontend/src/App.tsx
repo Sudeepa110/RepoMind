@@ -3,6 +3,7 @@ import { Header } from './components/Header';
 import { Footer } from './components/Footer';
 import { LandingPage } from './pages/LandingPage';
 import { DashboardPreview } from './pages/DashboardPreview';
+import { EvaluationDashboard } from './components/EvaluationDashboard';
 import { api } from './services/api';
 import type { HealthStatus, DemoRepository, ValidationResult, AppView } from './types';
 
@@ -100,6 +101,8 @@ export const App: React.FC = () => {
               selectedUrl={selectedUrl}
               setSelectedUrl={setSelectedUrl}
             />
+          ) : currentView === 'evaluation' ? (
+            <EvaluationDashboard onBack={handleBackToLanding} />
           ) : (
             <DashboardPreview
               repoUrl={selectedUrl}

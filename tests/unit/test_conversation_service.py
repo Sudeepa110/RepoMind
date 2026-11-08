@@ -4,6 +4,7 @@ Tests repository-scoped conversation persistence, message ordering,
 repository isolation, auto-titling, and recent history truncation.
 """
 
+import asyncio
 import pytest
 from sqlalchemy import select
 
@@ -161,6 +162,7 @@ async def test_get_recent_history_bounding(sample_repos):
                 role=role,
                 content=f"Message {i}",
             )
+            await asyncio.sleep(0.002)
 
         # Retrieve last 4 turns
         history = await service.get_recent_history(session, conversation_id=conv.id, max_messages=4)

@@ -37,6 +37,8 @@ import type {
   TestRecommendationsResult,
   DocumentationRequest,
   DocumentationResult,
+  EvaluationSummary,
+  SystemProfile,
 } from '../types';
 
 const API_BASE = '/api/v1';
@@ -415,6 +417,27 @@ export const api = {
     const res = await apiClient.post<DocumentationResult>(
       `/repositories/${repositoryId}/intelligence/documentation`,
       payload
+    );
+    return res.data;
+  },
+
+  // ==========================================
+  // Phase 9: Evaluation & Benchmarking
+  // ==========================================
+
+  async getEvaluationSummary(): Promise<EvaluationSummary> {
+    const res = await apiClient.get<EvaluationSummary>('/evaluation/summary');
+    return res.data;
+  },
+
+  async getSystemProfile(): Promise<SystemProfile> {
+    const res = await apiClient.get<SystemProfile>('/evaluation/system-profile');
+    return res.data;
+  },
+
+  async runEvaluationSuite(): Promise<{ status: string; message: string; results?: any }> {
+    const res = await apiClient.post<{ status: string; message: string; results?: any }>(
+      '/evaluation/run'
     );
     return res.data;
   },

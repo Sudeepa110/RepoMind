@@ -44,6 +44,50 @@ class NetworkXGraphStore(BaseGraphStore):
         self.persist_dir.mkdir(parents=True, exist_ok=True)
         self._graphs: Dict[str, nx.DiGraph] = {}
         self._lock = threading.RLock()
+        self._name_index: Dict[str, Dict[str, Set[str]]] = {}
+        self._qualified_name_index: Dict[str, Dict[str, Set[str]]] = {}
+
+    def _index_node_entry(
+        self,
+        repository_id: str,
+        node_id: str,
+        name: Optional[str] = None,
+        qualified_name: Optional[str] = None,
+    ) -> None:
+        """Internal helper to index symbol and qualified names for O(1) resolution."""
+        if repository_id not in self._name_index:
+            self._name_index[repository_id] = {}
+        if repository_id not in self._qualified_name_index:
+            self._qualified_name_index[repository_id] = {}
+
+        if name:
+            n_clean = str(name).strip().lower()
+            if n_clean:
+                if n_clean not in self._name_index[repository_id]:
+                    self._name_index[repository_id][n_clean] = set()
+                self._name_index[repository_id][n_clean].add(node_id)
+
+        if qualified_name:
+            q_clean = str(qualified_name).strip().lower()
+            if q_clean:
+                if q_clean not in self._qualified_name_index[repository_id]:
+                    self._qualified_name_index[repository_id][q_clean] = set()
+                self._qualified_name_index[repository_id][q_clean].add(node_id)
+
+    def _rebuild_indices(self, repository_id: str) -> None:
+        """Rebuilds in-memory inverted indices for a given repository."""
+        graph = self._graphs.get(repository_id)
+        if not graph:
+            return
+        self._name_index[repository_id] = {}
+        self._qualified_name_index[repository_id] = {}
+        for nid, data in graph.nodes(data=True):
+            self._index_node_entry(
+                repository_id,
+                nid,
+                name=data.get("name"),
+                qualified_name=data.get("qualified_name"),
+            )
 
     def _get_or_create_graph(self, repository_id: str) -> nx.DiGraph:
         with self._lock:
@@ -138,6 +182,12 @@ class NetworkXGraphStore(BaseGraphStore):
                 "properties": node.properties,
             }
             graph.add_node(node.id, **node_attrs)
+            self._index_node_entry(
+                node.repository_id,
+                node.id,
+                name=node.name,
+                qualified_name=node.qualified_name,
+            )
 
     def add_edge(self, edge: GraphEdge) -> None:
         """Add a directed relationship between two nodes."""
@@ -224,7 +274,27 @@ class NetworkXGraphStore(BaseGraphStore):
         with self._lock:
             graph = self._get_or_create_graph(repository_id)
             results: List[GraphNode] = []
-            q_lower = query.lower() if query else None
+            q_lower = query.strip().lower() if query else None
+
+            # Fast Inverted Index Lookup optimization:
+            if q_lower and repository_id in self._name_index:
+                exact_nids: Set[str] = set()
+                if q_lower in self._name_index[repository_id]:
+                    exact_nids.update(self._name_index[repository_id][q_lower])
+                if q_lower in self._qualified_name_index.get(repository_id, {}):
+                    exact_nids.update(self._qualified_name_index[repository_id][q_lower])
+
+                if exact_nids:
+                    for nid in exact_nids:
+                        if nid in graph:
+                            data = graph.nodes[nid]
+                            if node_type and data.get("type") != node_type.value:
+                                continue
+                            if file_path and data.get("file_path") != file_path:
+                                continue
+                            results.append(self._node_from_data(nid, data, repository_id))
+                    if results:
+                        return results[offset : offset + limit]
 
             for node_id, data in graph.nodes(data=True):
                 # Filter by node type
@@ -572,6 +642,7 @@ class NetworkXGraphStore(BaseGraphStore):
 
                 g = nx.node_link_graph(payload["graph"], directed=True, multigraph=False, edges="edges")
                 self._graphs[repository_id] = g
+                self._rebuild_indices(repository_id)
                 logger.info(
                     f"Loaded knowledge graph for '{repository_id}' ({g.number_of_nodes()} nodes, {g.number_of_edges()} edges) from {target_path}"
                 )
@@ -585,6 +656,8 @@ class NetworkXGraphStore(BaseGraphStore):
         with self._lock:
             if repository_id in self._graphs:
                 del self._graphs[repository_id]
+            self._name_index.pop(repository_id, None)
+            self._qualified_name_index.pop(repository_id, None)
 
             safe_fn = sanitize_filename(repository_id)
             target_path = self.persist_dir / f"{safe_fn}.json"

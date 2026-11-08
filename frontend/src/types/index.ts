@@ -341,7 +341,7 @@ export interface HybridRetrievalResponse {
   diagnostics: Record<string, any>;
 }
 
-export type AppView = 'landing' | 'dashboard';
+export type AppView = 'landing' | 'dashboard' | 'evaluation';
 
 export interface Citation {
   citation_id: string;
@@ -623,5 +623,133 @@ export interface DocumentationResult {
   markdown_documentation: string;
   citations: Citation[];
 }
+
+// ==========================================
+// Phase 9: Evaluation & Benchmarking Types
+// ==========================================
+
+export interface RetrievalStrategyMetrics {
+  precision_at_1: number;
+  precision_at_3: number;
+  precision_at_5: number;
+  recall_at_3: number;
+  recall_at_5: number;
+  mrr: number;
+  ndcg_at_5: number;
+  file_accuracy: number;
+  symbol_accuracy: number;
+  mean_latency_ms: number;
+  latency_p50_ms: number;
+  latency_p95_ms: number;
+  total_queries?: number;
+}
+
+export interface RetrievalComparisonSummary {
+  [repoId: string]: {
+    vector_only: RetrievalStrategyMetrics;
+    keyword_only: RetrievalStrategyMetrics;
+    graph_only: RetrievalStrategyMetrics;
+    hybrid: RetrievalStrategyMetrics;
+  };
+}
+
+export interface GroundingMetrics {
+  citation_validity: number;
+  citation_coverage: number;
+  abstention_accuracy: number;
+  injection_defense_success_rate: number;
+}
+
+export interface KnowledgeGraphBenchmark {
+  total_nodes_extracted: number;
+  ground_truth_nodes: number;
+  node_precision: number;
+  node_recall: number;
+  total_edges_extracted: number;
+  ground_truth_edges: number;
+  edge_precision: number;
+  edge_recall: number;
+  confirmed_edges: number;
+  unresolved_edges: number;
+}
+
+export interface ImpactAnalysisBenchmark {
+  direct_precision: number;
+  direct_recall: number;
+  false_positive_rate: number;
+  false_negative_rate: number;
+  file_blast_radius_accuracy: number;
+}
+
+export interface BugInvestigationBenchmark {
+  precision: number;
+  recall: number;
+  f1_score: number;
+  false_positive_rate: number;
+  false_negative_rate: number;
+}
+
+export interface GraphAndIntelligenceBenchmark {
+  knowledge_graph: KnowledgeGraphBenchmark;
+  change_impact_analysis: ImpactAnalysisBenchmark;
+  bug_investigation: BugInvestigationBenchmark;
+  test_recommendations: {
+    category_coverage: number;
+    has_suggested_assertions: boolean;
+  };
+}
+
+export interface HardwareEnvironment {
+  platform: string;
+  cpu_architecture: string;
+  cpu_cores_logical: number;
+  cpu_cores_physical: number;
+  ram_total_gb: number;
+  ram_available_gb: number;
+  gpu_detected: string;
+  pytorch_device: string;
+}
+
+export interface QueryLatencyPercentiles {
+  cold_start_latency_ms: number;
+  warm_start_p50_ms: number;
+  warm_start_p95_ms: number;
+  warm_start_p99_ms: number;
+  total_measured_queries: number;
+}
+
+export interface StageMetric {
+  duration_ms: number;
+  memory_before_mb: number;
+  memory_after_mb: number;
+  memory_delta_mb: number;
+}
+
+export interface EvaluationSummary {
+  status: string;
+  metadata: {
+    timestamp?: string;
+    phase: string;
+    hardware: HardwareEnvironment;
+    total_queries_evaluated: number;
+  };
+  retrieval_strategy_comparison: RetrievalComparisonSummary;
+  grounding_and_citations: GroundingMetrics;
+  graph_and_intelligence: GraphAndIntelligenceBenchmark;
+  system_latency_profiling: {
+    hardware_environment: HardwareEnvironment;
+    query_latency_percentiles: QueryLatencyPercentiles;
+    stages: Record<string, StageMetric>;
+  };
+}
+
+export interface SystemProfile {
+  hardware_environment: HardwareEnvironment;
+  current_rss_mb: number;
+  query_latency_percentiles: QueryLatencyPercentiles;
+  pipeline_stages: Record<string, StageMetric>;
+  indexing_breakdown: Record<string, any>;
+}
+
 
 

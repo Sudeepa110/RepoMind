@@ -484,3 +484,64 @@ Empower RepoMind to navigate complex multi-file repositories, assess the blast r
       - Citation Validity: **100.0%**
     - Full test suite: **130 / 130 passing (100.0%)**.
     - Frontend production build: **0 errors in 416ms**.
+
+
+---
+
+## Phase 9: Evaluation Framework, Real-World Benchmarking & Performance Optimization
+
+### Status: COMPLETED
+
+### Key Deliverables Implemented
+
+1. **Formal IR Metrics Engine (`backend/evaluation/metrics.py`)**:
+   - Pure mathematical implementation of Precision@k, Recall@k, Reciprocal Rank (MRR), Discounted Cumulative Gain (DCG@k), Normalized DCG (nDCG@k), line overlap IoU with bound normalization, and percentile calculation.
+
+2. **4-Way Retrieval Benchmark Runner (`backend/evaluation/retrieval_benchmark.py`)**:
+   - Standardized evaluation of Vector-only, Keyword-only, Graph-only, and Hybrid strategies.
+   - Dual-alias support (`precision@k` and `precision_at_k`).
+
+3. **Grounded Citation & Safety Evaluator (`backend/evaluation/citation_evaluator.py`)**:
+   - Decoupled Citation Validity (100.0%) vs Claim-Level Citation Coverage (100.0%).
+   - Honest Abstention on unindexed queries (100.0% accuracy).
+   - Adversarial Prompt Injection Defense (100.0% defense rate).
+
+4. **Code Intelligence Benchmarks (`backend/evaluation/intelligence_benchmark.py`)**:
+   - Knowledge Graph extraction quality (100% node/edge recall, 56 confirmed edges, 15 unresolved calls).
+   - Change Impact Analysis precision/recall/FPR (100% precision, 0% FPR).
+   - Defect Investigation F1 score (1.00).
+
+5. **Hardware & Pipeline Profiling (`backend/evaluation/profiler.py`)**:
+   - Stage duration profiler across all 11 stages.
+   - Native Win32 memory RSS sampling via `GetProcessMemoryInfo`.
+   - Cold vs warm query latency percentile tracking (p50, p95, p99).
+
+6. **Benchmark Datasets & Orchestration**:
+   - Datasets: `synthetic_auth_repo` (7 files, 22 chunks, 56 edges) and `real_world_flask_subset` (`pallets/flask` e559fa7).
+   - Query taxonomy: 25 standardized queries across 14 developer categories.
+   - Complete multi-repo runner in `benchmark_orchestrator.py` executing 102 query runs.
+   - Results persisted at `backend/evaluation/results/benchmark_results.json`.
+
+7. **Evidence-Based Performance Optimizations**:
+   - NetworkX in-memory inverted indices (`_name_index`, `_qualified_name_index`): $O(1)$ constant time lookup (**0.033 ms**).
+   - HybridRetriever thread-safe LRU response cache: instantaneous hit (**0.027 ms**).
+
+8. **Phase 9 REST API Endpoints (`backend/app/api/evaluation.py`)**:
+   - `GET /api/v1/evaluation/summary`: Comprehensive 4-way retrieval, grounding, and intelligence metrics.
+   - `GET /api/v1/evaluation/system-profile`: Hardware specs, process RSS memory, query latency percentiles.
+   - `POST /api/v1/evaluation/run`: On-demand benchmark suite trigger.
+
+9. **Interactive Evaluation Dashboard (`frontend/src/components/EvaluationDashboard.tsx`)**:
+   - 4-way retrieval comparison table with metric toggles.
+   - Runtime hardware environment card & stage timing waterfall.
+   - Grounding cards and intelligence capability statistics.
+   - Integrated into `DashboardPreview.tsx` and `Header.tsx`.
+
+10. **Automated Test Suite**:
+    - `tests/evaluation/test_metrics.py`: IR metric mathematical correctness.
+    - `tests/evaluation/test_retrieval_benchmark.py`: Strategy comparison and aliases.
+    - `tests/evaluation/test_citation_evaluator.py`: Grounding, coverage, abstention, injection.
+    - `tests/evaluation/test_profiler.py`: Memory, stage timing, latency percentiles.
+    - `tests/integration/test_evaluation_api.py`: FastAPI endpoints.
+    - Full test suite: **147 / 147 tests passing (100.0%)**.
+    - Frontend production build: **0 errors in 610ms**.

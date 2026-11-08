@@ -6,6 +6,9 @@ into a unified, resilient, and calibrated codebase intelligence retrieval system
 
 import logging
 import time
+import hashlib
+import threading
+from collections import OrderedDict
 from typing import List, Dict, Any, Optional
 
 from backend.app.retrieval.retrieval_models import (
@@ -52,6 +55,21 @@ class HybridRetriever:
         self.graph_service = graph_service or graph_traversal_service
         self.fusion = fusion or result_fusion
         self.assembler = assembler or context_assembler
+        self._cache_lock = threading.Lock()
+        self._response_cache: Dict[str, OrderedDict[str, HybridRetrievalResponse]] = {}
+        self._cache_max_size: int = 128
+
+    def _make_cache_key(self, request: HybridSearchRequest) -> str:
+        key_raw = f"{request.query.strip().lower()}|{request.top_k}|{request.include_vector}|{request.include_graph}|{request.include_keyword}|{request.language}|{request.file_path}|{request.symbol_type}"
+        return hashlib.sha256(key_raw.encode("utf-8")).hexdigest()
+
+    def invalidate_cache(self, repository_id: Optional[str] = None) -> None:
+        """Invalidates cached search responses for a repository or globally."""
+        with self._cache_lock:
+            if repository_id:
+                self._response_cache.pop(repository_id, None)
+            else:
+                self._response_cache.clear()
 
     def hybrid_search(
         self,
@@ -69,6 +87,14 @@ class HybridRetriever:
         start_total = time.perf_counter()
         execution_times: Dict[str, float] = {}
         warnings: List[str] = []
+
+        # Fast LRU Cache Check
+        cache_key = self._make_cache_key(request)
+        with self._cache_lock:
+            if repository_id in self._response_cache and cache_key in self._response_cache[repository_id]:
+                cached_res = self._response_cache[repository_id][cache_key]
+                self._response_cache[repository_id].move_to_end(cache_key)
+                return cached_res
 
         # 1. Query Analysis
         t0 = time.perf_counter()
@@ -278,10 +304,34 @@ class HybridRetriever:
 
                 for ev_sym in evidence_symbols[:5]:
                     kw_matches = self.keyword_engine.search(repository_id, ev_sym, top_k=1)
-                    for km in kw_matches:
-                        km.retrieval_source = "GRAPH"
-                        km.sources = ["GRAPH"]
-                        graph_results.append(km)
+                    if kw_matches:
+                        for km in kw_matches:
+                            km.retrieval_source = "GRAPH"
+                            km.sources = ["GRAPH"]
+                            graph_results.append(km)
+                    else:
+                        node = self.graph_service.store.get_node(ev_sym, repository_id)
+                        if not node:
+                            nodes = self.graph_service.store.get_nodes(repository_id, query=ev_sym, limit=1)
+                            node = nodes[0] if nodes else None
+                        if node and node.file_path and node.start_line:
+                            graph_results.append(
+                                UnifiedSearchResult(
+                                    chunk_id=f"graph_{node.id}",
+                                    repository_id=repository_id,
+                                    file_path=node.file_path,
+                                    symbol_id=node.id,
+                                    symbol_name=node.name,
+                                    symbol_type=node.type.value if hasattr(node.type, 'value') else str(node.type),
+                                    start_line=node.start_line,
+                                    end_line=node.end_line or (node.start_line + 5),
+                                    source_code=node.properties.get("code") or f"// Symbol: {node.name}",
+                                    score=1.0,
+                                    retrieval_strategy="GRAPH",
+                                    retrieval_source="GRAPH",
+                                    sources=["GRAPH"],
+                                )
+                            )
 
             except Exception as e:
                 logger.exception("Graph retrieval failure for repo %s: %s", repository_id, e)
@@ -347,7 +397,7 @@ class HybridRetriever:
             "routing_reasons": plan.reasons,
         }
 
-        return HybridRetrievalResponse(
+        response = HybridRetrievalResponse(
             query=request.query,
             repository_id=repository_id,
             intents=[i.value for i in analysis.intents],
@@ -360,6 +410,15 @@ class HybridRetriever:
             warnings=warnings,
             diagnostics=diagnostics,
         )
+
+        with self._cache_lock:
+            if repository_id not in self._response_cache:
+                self._response_cache[repository_id] = OrderedDict()
+            self._response_cache[repository_id][cache_key] = response
+            if len(self._response_cache[repository_id]) > self._cache_max_size:
+                self._response_cache[repository_id].popitem(last=False)
+
+        return response
 
 
 # Global singleton instance
