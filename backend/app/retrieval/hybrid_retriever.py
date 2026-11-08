@@ -193,7 +193,7 @@ class HybridRetriever:
 
                 for sym in candidate_symbols[:3]:
                     # Callers
-                    if "callers" in plan.graph_operations or not plan.graph_operations:
+                    if "callers" in plan.graph_operations:
                         c_res = self.graph_service.find_callers(repository_id, sym)
                         if c_res.get("found"):
                             for c in c_res.get("callers", []):
@@ -342,24 +342,24 @@ class HybridRetriever:
         # 6. Reciprocal Rank Fusion & Deduplication
         t0 = time.perf_counter()
 
-        # Dynamic intent-adjusted engine weights
+        # Dynamic intent-calibrated engine weights (balanced to prevent engine starvation)
         weights = {
             "VECTOR": 1.0,
-            "KEYWORD": 1.1,
+            "KEYWORD": 1.0,
             "GRAPH": 1.0,
         }
         if any(i in analysis.intents for i in (QueryIntent.CALLERS, QueryIntent.CALLEES, QueryIntent.DEPENDENCIES, QueryIntent.IMPACT_ANALYSIS, QueryIntent.INHERITANCE)):
-            weights["GRAPH"] = 1.8
-            weights["KEYWORD"] = 0.8
-            weights["VECTOR"] = 0.7
-        elif QueryIntent.EXACT_SYMBOL in analysis.intents:
-            weights["KEYWORD"] = 1.5
-            weights["VECTOR"] = 0.9
-            weights["GRAPH"] = 0.9
-        elif QueryIntent.SEMANTIC in analysis.intents:
-            weights["VECTOR"] = 1.3
+            weights["GRAPH"] = 1.25
             weights["KEYWORD"] = 1.0
-            weights["GRAPH"] = 0.8
+            weights["VECTOR"] = 0.95
+        elif QueryIntent.EXACT_SYMBOL in analysis.intents:
+            weights["KEYWORD"] = 1.25
+            weights["VECTOR"] = 1.0
+            weights["GRAPH"] = 0.95
+        elif QueryIntent.SEMANTIC in analysis.intents:
+            weights["VECTOR"] = 1.25
+            weights["KEYWORD"] = 1.0
+            weights["GRAPH"] = 0.85
 
         ranked_results = self.fusion.fuse_and_rank(
             vector_results=vector_results,

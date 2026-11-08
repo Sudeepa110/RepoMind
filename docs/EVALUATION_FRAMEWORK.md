@@ -163,3 +163,4 @@ Verifies that instructions embedded inside source code comments, commit messages
 - **Stage Profiling**: Uses a context manager (`StageProfiler`) to capture microsecond-precision durations across all stages: AST parsing, chunking, graph construction, ChromaDB indexing, FTS5 indexing, hybrid retrieval, and context assembly.
 - **Memory Profiling**: On Windows, calls Win32 `psapi.GetProcessMemoryInfo` via `ctypes` to measure working set size (`WorkingSetSize`) before and after each stage.
 - **Query Latency Percentiles**: Profiles 100+ query executions across cold-start (unprimed model & database) and warm-start conditions, calculating p50, p95, and p99 percentiles.
+

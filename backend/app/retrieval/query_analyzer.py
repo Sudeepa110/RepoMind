@@ -37,6 +37,18 @@ CAMEL_CASE_PATTERN = re.compile(r"\b([A-Z][a-z0-9]+(?:[A-Z][a-z0-9]+)+)\b")
 # Regex pattern for snake_case identifiers
 SNAKE_CASE_PATTERN = re.compile(r"\b([a-z0-9]+(?:_[a-z0-9]+)+)\b")
 
+# Regex pattern for capitalized class or type names (e.g. Flask, Config, Scaffold)
+CLASS_IDENTIFIER_PATTERN = re.compile(r"\b([A-Z][a-zA-Z0-9_]+)\b")
+
+COMMON_ENGLISH_WORDS: Set[str] = {
+    "What", "Which", "Where", "When", "Who", "How", "Why", "Explain", "Trace",
+    "Find", "Show", "Locate", "Generate", "Summarize", "Define", "Does",
+    "Can", "Will", "The", "This", "That", "These", "Those", "All", "And",
+    "For", "With", "From", "Into", "Over", "Under", "Between", "Through",
+    "Important", "Admin", "Directive", "Reveal", "Print", "Not", "Yes", "No",
+    "Is", "Are", "Was", "Were", "In", "On", "At", "By", "To", "If", "Solidity",
+}
+
 
 class QueryAnalyzer:
     """
@@ -189,6 +201,12 @@ class QueryAnalyzer:
         for m in SNAKE_CASE_PATTERN.finditer(text):
             sym = m.group(1)
             if sym not in STOP_TERMS and len(sym) >= 4:
+                found.append(sym)
+
+        # 5. Capitalized class/type identifiers (e.g. Flask, Config, Scaffold)
+        for m in CLASS_IDENTIFIER_PATTERN.finditer(text):
+            sym = m.group(1)
+            if sym not in COMMON_ENGLISH_WORDS and len(sym) >= 3:
                 found.append(sym)
 
         # Deduplicate while preserving order

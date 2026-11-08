@@ -96,3 +96,4 @@ RepoMind currently integrates a dual-pipeline architecture:
    - Provide strict before-and-after measurements for every optimization.
 7. **Frontend Performance & Benchmark Dashboard**:
    - Display real benchmark metrics, retrieval comparison tables, and hardware specs without hardcoded simulation.
+

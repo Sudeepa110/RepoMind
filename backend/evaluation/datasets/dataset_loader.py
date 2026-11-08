@@ -323,3 +323,216 @@ def test_create_app():
     )
 
     return target_dir
+
+
+
+def build_synthetic_ts_express_repo(target_dir: Path) -> Path:
+    """Creates the synthetic_ts_express_repo fixture on disk."""
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    # 1. src/models/user.interface.ts
+    m_dir = target_dir / "src" / "models"
+    m_dir.mkdir(parents=True, exist_ok=True)
+    (m_dir / "user.interface.ts").write_text(
+        '''export interface UserProfile {
+  id: string;
+  username: string;
+  email: string;
+  role: string;
+}
+''',
+        encoding="utf-8",
+    )
+
+    # 2. src/services/jwt.service.ts
+    s_dir = target_dir / "src" / "services"
+    s_dir.mkdir(parents=True, exist_ok=True)
+    (s_dir / "jwt.service.ts").write_text(
+        '''export class TokenService {
+  private secretKey: string = "repomind-jwt-secret";
+
+  public generateAccessToken(userId: string): string {
+    return `jwt-token-${userId}`;
+  }
+
+  public verifyJwtToken(token: string): boolean {
+    return token.startsWith("jwt-token-");
+  }
+}
+''',
+        encoding="utf-8",
+    )
+
+    # 3. src/middleware/authenticate.middleware.ts
+    mw_dir = target_dir / "src" / "middleware"
+    mw_dir.mkdir(parents=True, exist_ok=True)
+    (mw_dir / "authenticate.middleware.ts").write_text(
+        '''import { TokenService } from "../services/jwt.service";
+
+export function authenticateMiddleware(authHeader: string): boolean {
+  const tokenService = new TokenService();
+  return tokenService.verifyJwtToken(authHeader);
+}
+''',
+        encoding="utf-8",
+    )
+
+    # 4. src/controllers/auth.controller.ts
+    c_dir = target_dir / "src" / "controllers"
+    c_dir.mkdir(parents=True, exist_ok=True)
+    (c_dir / "auth.controller.ts").write_text(
+        '''import { TokenService } from "../services/jwt.service";
+
+export class AuthController {
+  private tokenService: TokenService;
+
+  constructor() {
+    this.tokenService = new TokenService();
+  }
+
+  public login(username: string): string {
+    return this.tokenService.generateAccessToken(username);
+  }
+}
+''',
+        encoding="utf-8",
+    )
+
+    # 5. src/routes/api.routes.ts
+    r_dir = target_dir / "src" / "routes"
+    r_dir.mkdir(parents=True, exist_ok=True)
+    (r_dir / "api.routes.ts").write_text(
+        '''import { AuthController } from "../controllers/auth.controller";
+import { authenticateMiddleware } from "../middleware/authenticate.middleware";
+
+export function registerRoutes(): void {
+  const controller = new AuthController();
+  controller.login("test-user");
+  authenticateMiddleware("jwt-token-test");
+}
+''',
+        encoding="utf-8",
+    )
+
+    return target_dir
+
+
+def build_synthetic_java_petclinic_repo(target_dir: Path) -> Path:
+    """Creates the synthetic_java_petclinic_repo fixture on disk."""
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    base_pkg = target_dir / "src" / "main" / "java" / "org" / "repomind"
+
+    # 1. model/Pet.java
+    pet_dir = base_pkg / "model"
+    pet_dir.mkdir(parents=True, exist_ok=True)
+    (pet_dir / "Pet.java").write_text(
+        '''package org.repomind.model;
+
+public class Pet {
+    private String name;
+
+    public String getName() {
+        return this.name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+}
+''',
+        encoding="utf-8",
+    )
+
+    # 2. model/Owner.java
+    (pet_dir / "Owner.java").write_text(
+        '''package org.repomind.model;
+
+import java.util.List;
+
+public class Owner {
+    private Long id;
+    private String lastName;
+    private List<Pet> pets;
+
+    public Long getId() {
+        return this.id;
+    }
+
+    public String getLastName() {
+        return this.lastName;
+    }
+}
+''',
+        encoding="utf-8",
+    )
+
+    # 3. repository/OwnerRepository.java
+    repo_dir = base_pkg / "repository"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    (repo_dir / "OwnerRepository.java").write_text(
+        '''package org.repomind.repository;
+
+import org.repomind.model.Owner;
+import java.util.Optional;
+
+public interface OwnerRepository {
+    Optional<Owner> findById(Long id);
+    void save(Owner owner);
+}
+''',
+        encoding="utf-8",
+    )
+
+    # 4. service/ClinicService.java
+    svc_dir = base_pkg / "service"
+    svc_dir.mkdir(parents=True, exist_ok=True)
+    (svc_dir / "ClinicService.java").write_text(
+        '''package org.repomind.service;
+
+import org.repomind.model.Owner;
+import org.repomind.repository.OwnerRepository;
+import java.util.Optional;
+
+public class ClinicService {
+    private final OwnerRepository ownerRepository;
+
+    public ClinicService(OwnerRepository repo) {
+        this.ownerRepository = repo;
+    }
+
+    public Optional<Owner> findOwnerById(Long id) {
+        return this.ownerRepository.findById(id);
+    }
+}
+''',
+        encoding="utf-8",
+    )
+
+    # 5. controller/OwnerController.java
+    ctrl_dir = base_pkg / "controller"
+    ctrl_dir.mkdir(parents=True, exist_ok=True)
+    (ctrl_dir / "OwnerController.java").write_text(
+        '''package org.repomind.controller;
+
+import org.repomind.model.Owner;
+import org.repomind.service.ClinicService;
+import java.util.Optional;
+
+public class OwnerController {
+    private final ClinicService clinicService;
+
+    public OwnerController(ClinicService clinicService) {
+        this.clinicService = clinicService;
+    }
+
+    public Owner processFindForm(Long ownerId) {
+        Optional<Owner> owner = this.clinicService.findOwnerById(ownerId);
+        return owner.orElse(null);
+    }
+}
+''',
+        encoding="utf-8",
+    )
+
+    return target_dir

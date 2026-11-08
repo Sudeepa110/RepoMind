@@ -14,6 +14,7 @@ Coordinates the complete, reproducible Phase 9 evaluation suite:
 import os
 os.environ.setdefault("HF_HUB_OFFLINE", "1")
 os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
+import asyncio
 import json
 import re
 import time
@@ -47,6 +48,8 @@ from backend.evaluation.datasets.dataset_loader import (
     load_benchmark_queries,
     build_synthetic_auth_repo,
     build_real_world_flask_subset,
+    build_synthetic_ts_express_repo,
+    build_synthetic_java_petclinic_repo,
 )
 from backend.evaluation.retrieval_benchmark import RetrievalBenchmarkRunner
 from backend.evaluation.citation_evaluator import CitationAndGroundingEvaluator
@@ -75,8 +78,13 @@ async def run_full_evaluation_suite(
         with profiler.profile_stage("dataset_provisioning"):
             auth_repo_dir = tmp_path / "synthetic_auth_repo"
             flask_repo_dir = tmp_path / "real_world_flask_subset"
+            ts_repo_dir = tmp_path / "synthetic_ts_express_repo"
+            java_repo_dir = tmp_path / "synthetic_java_petclinic_repo"
+
             build_synthetic_auth_repo(auth_repo_dir)
             build_real_world_flask_subset(flask_repo_dir)
+            build_synthetic_ts_express_repo(ts_repo_dir)
+            build_synthetic_java_petclinic_repo(java_repo_dir)
         print("Stage 1 complete: datasets provisioned.", flush=True)
 
         # Initialize engines
@@ -125,10 +133,12 @@ async def run_full_evaluation_suite(
 
         retrieval_runner = RetrievalBenchmarkRunner(retriever=hybrid_retriever_inst)
 
-        # Step 2: Index Repositories with Profiling
+        # Step 2: Index Repositories with Profiling (Multi-language: Python, TypeScript, Java)
         repo_configs = [
             ("synthetic_auth_repo", auth_repo_dir, "auth_commit_001"),
             ("real_world_flask_subset", flask_repo_dir, "e559fa7"),
+            ("synthetic_ts_express_repo", ts_repo_dir, "b1928cf"),
+            ("synthetic_java_petclinic_repo", java_repo_dir, "e439fd2"),
         ]
 
         indexing_stats = {}
@@ -137,7 +147,8 @@ async def run_full_evaluation_suite(
             print(f"Stage 2: Indexing {repo_id}...", flush=True)
             repo_files = [
                 str(p.relative_to(repo_dir)).replace("\\", "/")
-                for p in repo_dir.rglob("*.py")
+                for p in repo_dir.rglob("*")
+                if p.is_file() and p.suffix in (".py", ".ts", ".tsx", ".js", ".jsx", ".java")
             ]
 
             # 2a. Tree-sitter AST parsing
@@ -374,3 +385,8 @@ async def run_full_evaluation_suite(
 
         print("Benchmark run complete! Total queries evaluated:", len(queries), flush=True)
         return full_results
+
+
+if __name__ == "__main__":
+    asyncio.run(run_full_evaluation_suite(persist_results=True))
+

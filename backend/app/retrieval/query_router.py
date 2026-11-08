@@ -135,8 +135,31 @@ class QueryRouter:
             reasons["USER_OVERRIDE_VECTOR"] = f"User explicitly set include_vector={include_vector}"
 
         if include_graph is not None:
-            graph_enabled = include_graph
-            reasons["USER_OVERRIDE_GRAPH"] = f"User explicitly set include_graph={include_graph}"
+            if not include_graph:
+                graph_enabled = False
+                reasons["USER_OVERRIDE_GRAPH"] = f"User explicitly set include_graph=False"
+            else:
+                # Enable graph if user requested it AND there are structural operations,
+                # or if graph is the sole requested strategy (graph_only mode)
+                is_graph_only = not include_vector
+                has_structural_intent = bool(graph_ops) or any(
+                    i in intents
+                    for i in (
+                        QueryIntent.CALLERS,
+                        QueryIntent.CALLEES,
+                        QueryIntent.DEPENDENCIES,
+                        QueryIntent.INHERITANCE,
+                        QueryIntent.IMPACT_ANALYSIS,
+                        QueryIntent.EXECUTION_FLOW,
+                        QueryIntent.ARCHITECTURE,
+                    )
+                )
+                if has_structural_intent or is_graph_only:
+                    graph_enabled = True
+                    reasons["USER_OVERRIDE_GRAPH"] = f"User explicitly set include_graph=True"
+                else:
+                    graph_enabled = False
+                    reasons["GRAPH_BYPASSED"] = "Graph traversal omitted for pure non-structural query."
 
         if include_keyword is not None:
             keyword_enabled = include_keyword

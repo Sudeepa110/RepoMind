@@ -33,6 +33,7 @@ from backend.app.services.indexing import (
 from backend.app.ingestion.cloner import cleanup_workspace
 from backend.app.retrieval.semantic_search import semantic_search_service
 from backend.app.retrieval.keyword_search import keyword_search_engine
+from backend.app.retrieval.hybrid_retriever import hybrid_retriever
 from backend.app.graph.networkx_store import networkx_graph_store
 
 router = APIRouter(prefix="/repositories", tags=["Repositories"])
@@ -474,7 +475,10 @@ async def delete_repository(
     # 4. Cleanup Keyword Search FTS5
     keyword_search_engine.delete_repository(repository_id)
 
-    # 5. Cleanup SQLite record
+    # 5. Invalidate Hybrid Retriever response cache
+    hybrid_retriever.invalidate_cache(repository_id)
+
+    # 6. Cleanup SQLite record
     await db.delete(repo)
     await db.commit()
 

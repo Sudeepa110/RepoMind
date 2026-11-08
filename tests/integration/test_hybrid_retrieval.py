@@ -200,3 +200,32 @@ async def test_hybrid_retrieval_api_endpoints(sample_hybrid_repo):
         assert "CALLEES" in diag_data["intents"]
         assert "login_user" in diag_data["extracted_symbols"]
 
+
+@pytest.mark.asyncio
+async def test_hybrid_cache_invalidation_behavior(sample_hybrid_repo):
+    """Verifies that HybridRetriever LRU cache stores responses and correctly invalidates on repo reindex or deletion."""
+    repo_id = sample_hybrid_repo["repo_id"]
+
+    # 1. Warm search to populate cache
+    req = HybridSearchRequest(query="who calls verify_password", top_k=5)
+    res1 = hybrid_retriever.hybrid_search(repo_id, req)
+    assert res1.total_results >= 1
+
+    # Verify cache entry exists for repo_id
+    assert repo_id in hybrid_retriever._response_cache
+    assert len(hybrid_retriever._response_cache[repo_id]) >= 1
+
+    # 2. Targeted cache invalidation by repository_id
+    hybrid_retriever.invalidate_cache(repo_id)
+
+    # Ensure repo_id cache entries are evicted
+    assert repo_id not in hybrid_retriever._response_cache
+
+    # 3. Global cache invalidation
+    hybrid_retriever.hybrid_search(repo_id, req)
+    assert len(hybrid_retriever._response_cache) >= 1
+    hybrid_retriever.invalidate_cache()
+    assert len(hybrid_retriever._response_cache) == 0
+
+
+

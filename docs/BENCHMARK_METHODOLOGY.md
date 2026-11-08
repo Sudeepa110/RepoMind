@@ -94,3 +94,4 @@ To eliminate experimental bias and ensure reproducibility, all benchmarks adhere
    - Percentiles computed using linear rank interpolation: p50 (median), p95, p99.
 5. **Memory Measurement**:
    - Working set size (RSS) sampled via native Win32 `GetProcessMemoryInfo` API before and after each pipeline stage.
+

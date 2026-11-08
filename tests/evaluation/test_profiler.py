@@ -54,3 +54,4 @@ def test_query_latency_percentiles():
     assert query_perf["p95_latency_ms"] >= query_perf["p50_latency_ms"]
     assert query_perf["p99_latency_ms"] >= query_perf["p95_latency_ms"]
     assert summary["hardware_environment"]["system"] == "HP Victus"
+

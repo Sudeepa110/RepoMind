@@ -17,6 +17,7 @@ from backend.app.processing.engine import code_engine
 from backend.app.vectorstore.chunker import chunker
 from backend.app.retrieval.semantic_search import semantic_search_service
 from backend.app.retrieval.keyword_search import keyword_search_engine
+from backend.app.retrieval.hybrid_retriever import hybrid_retriever
 from backend.app.graph.builder import graph_builder
 from backend.app.graph.networkx_store import networkx_graph_store
 
@@ -321,6 +322,9 @@ async def process_repository_job(
         tree_path = tree_dir / f"{repo_id}.json"
         with open(tree_path, "w", encoding="utf-8") as tf:
             json.dump(analysis.directory_tree.model_dump(), tf, indent=2)
+
+        # Invalidate any cached search responses for this repository
+        hybrid_retriever.invalidate_cache(repo_id)
 
         # Mark job completed
         await update_job_progress(
