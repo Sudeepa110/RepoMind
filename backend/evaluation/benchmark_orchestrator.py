@@ -66,6 +66,7 @@ from backend.evaluation.profiler import SystemProfiler, get_current_process_memo
 logger = logging.getLogger(__name__)
 RESULTS_DIR = Path(__file__).parent / "results"
 RESULTS_FILE = RESULTS_DIR / "benchmark_results.json"
+HELDOUT_QUERIES_FILE = Path(__file__).parent / "datasets" / "held_out_abstention_queries.json"
 
 
 async def run_full_evaluation_suite(
@@ -290,6 +291,14 @@ async def run_full_evaluation_suite(
         abstention_summary = abstention_benchmark_results["summary"]
         abstention_accuracy = abstention_summary["overall_accuracy"]
 
+        # Step 5b: Held-Out Non-Tuning Abstention Benchmark (Phase 10)
+        held_out_benchmark_results = None
+        if HELDOUT_QUERIES_FILE.exists():
+            print("Stage 5b: Evaluating held-out non-tuning abstention benchmark (18 queries)...", flush=True)
+            with open(HELDOUT_QUERIES_FILE, "r", encoding="utf-8") as f:
+                held_out_queries = json.load(f)
+            held_out_benchmark_results = abstention_runner.run_benchmark(held_out_queries)
+
         # Step 6: Adversarial Prompt Injection Defense Evaluation
         print("Stage 6: Evaluating prompt injection defenses...", flush=True)
         injection_queries = [q for q in queries if q.get("is_injection")]
@@ -362,15 +371,17 @@ async def run_full_evaluation_suite(
         full_results = {
             "metadata": {
                 "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                "phase": "Phase 9.3: Final Retrieval Routing, Abstention & Benchmark Reliability",
+                "phase": "Phase 10: Productization & Production Readiness",
                 "hardware": perf_summary["hardware_environment"],
                 "total_queries_evaluated": len(queries),
                 "total_retrieval_queries_evaluated": len(queries),
                 "total_abstention_queries_evaluated": len(abstention_benchmark_results.get("detailed_records", [])),
+                "total_held_out_queries_evaluated": len(held_out_benchmark_results.get("detailed_records", [])) if held_out_benchmark_results else 0,
             },
             "indexing_performance": indexing_stats,
             "retrieval_strategy_comparison": retrieval_benchmarks,
             "balanced_abstention_benchmark": abstention_benchmark_results,
+            "held_out_abstention_benchmark": held_out_benchmark_results,
             "grounding_and_citations": {
                 "deterministic_citation_validity": round(avg_citation_validity, 4),
                 "deterministic_citation_coverage": round(avg_citation_coverage, 4),

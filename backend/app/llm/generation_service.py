@@ -85,16 +85,33 @@ class GenerationService:
         query = raw_query.lower()
         diagnostics = retrieval_response.diagnostics or {}
 
-        if not results and not graph_ev:
-            return EvidenceSufficiency.NO_EVIDENCE
-
         # ---------------------------------------------------------
-        # 1. API Route & Endpoint Matching Check (Phase 9.4)
+        # 1. API Route & Endpoint Matching Check (Phase 9.4 + Full-Repo Discovery)
         # ---------------------------------------------------------
         endpoint_target = extract_endpoint_from_query(raw_query)
         if endpoint_target:
-            route_match = match_endpoint_against_chunks(endpoint_target, results)
+            repo_chunks = []
+            if (
+                retrieval_response.repository_id
+                and self.hybrid_retriever
+                and getattr(self.hybrid_retriever, "keyword_engine", None)
+            ):
+                repo_chunks = self.hybrid_retriever.keyword_engine.get_all_repository_chunks(
+                    retrieval_response.repository_id
+                )
+            scan_chunks = repo_chunks if repo_chunks else results
+            if not scan_chunks and not graph_ev:
+                return EvidenceSufficiency.NO_EVIDENCE
+            route_match = match_endpoint_against_chunks(endpoint_target, scan_chunks)
             if route_match.status == RouteMatchStatus.EXACT_MATCH:
+                if repo_chunks and route_match.matched_file:
+                    existing_ids = {r.chunk_id for r in results}
+                    matched_file_chunks = [
+                        c for c in repo_chunks
+                        if c.file_path == route_match.matched_file and c.chunk_id not in existing_ids
+                    ]
+                    if matched_file_chunks and not any(r.file_path == route_match.matched_file for r in results):
+                        retrieval_response.results.extend(matched_file_chunks[:2])
                 return EvidenceSufficiency.SUFFICIENT
             elif route_match.status == RouteMatchStatus.METHOD_MISMATCH:
                 # Path exists, but HTTP method is unsupported (e.g. DELETE /login)
@@ -102,6 +119,9 @@ class GenerationService:
             elif route_match.status in (RouteMatchStatus.PREFIX_ONLY, RouteMatchStatus.NOT_FOUND):
                 # The endpoint path is absent or only a common prefix matches
                 return EvidenceSufficiency.NO_EVIDENCE
+
+        if not results and not graph_ev:
+            return EvidenceSufficiency.NO_EVIDENCE
 
         # ---------------------------------------------------------
         # 2. Confirmed Structural Graph Evidence

@@ -67,9 +67,65 @@ def validate_github_url(url: str) -> Tuple[bool, Optional[str], Optional[str], O
     return True, owner, repo, None
 
 
+async def _validate_redirect_host(response: httpx.Response) -> None:
+    """Rejects HTTP redirects to non-GitHub hosts to prevent SSRF bypasses."""
+    if response.next_request:
+        target_host = (response.next_request.url.host or "").lower()
+        target_scheme = (response.next_request.url.scheme or "").lower()
+        if target_scheme != "https" or target_host not in ("github.com", "www.github.com", "api.github.com"):
+            raise ValueError(f"Blocked unsafe redirect to host '{target_host}'.")
+
+
+async def _verify_via_git_ls_remote(owner: str, repo: str, timeout_seconds: float = 10.0) -> Tuple[bool, Optional[str]]:
+    """Fallback public accessibility check using non-interactive git ls-remote over HTTPS."""
+    import asyncio
+    import os
+    import subprocess
+    import shutil
+    from pathlib import Path
+
+    git_bin = shutil.which("git")
+    if not git_bin:
+        local_app = os.environ.get("LOCALAPPDATA", "")
+        if local_app:
+            for cand in (Path(local_app) / "GitHubDesktop").glob("app-*/resources/app/git/cmd/git.exe"):
+                if cand.exists():
+                    git_bin = str(cand)
+                    break
+    if not git_bin:
+        git_bin = "git"
+
+    git_url = f"https://github.com/{owner}/{repo}.git"
+    env = os.environ.copy()
+    env["GIT_TERMINAL_PROMPT"] = "0"
+    env["GCM_INTERACTIVE"] = "never"
+    env["GIT_ASKPASS"] = ""
+    env["GIT_ALLOW_PROTOCOL"] = "https"
+
+    def _run():
+        return subprocess.run(
+            [git_bin, "ls-remote", "--exit-code", "-h", git_url],
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+            env=env,
+            check=False,
+        )
+
+    try:
+        proc = await asyncio.to_thread(_run)
+        if proc.returncode == 0:
+            return True, None
+        return False, f"Repository '{owner}/{repo}' is inaccessible or private."
+    except Exception:
+        return False, "Connection to GitHub timed out while verifying repository."
+
+
 async def verify_github_repo_accessible(owner: str, repo: str, timeout_seconds: float = 8.0) -> Tuple[bool, Optional[str]]:
     """
     Verifies that the target GitHub repository is public and accessible without downloading.
+    Enforces strict redirect hostname checks to prevent SSRF and falls back to git ls-remote on API timeouts.
     """
     api_url = f"https://api.github.com/repos/{owner}/{repo}"
     headers = {
@@ -78,7 +134,11 @@ async def verify_github_repo_accessible(owner: str, repo: str, timeout_seconds: 
     }
 
     try:
-        async with httpx.AsyncClient(timeout=timeout_seconds, follow_redirects=True) as client:
+        async with httpx.AsyncClient(
+            timeout=timeout_seconds,
+            follow_redirects=True,
+            event_hooks={"response": [_validate_redirect_host]},
+        ) as client:
             resp = await client.get(api_url, headers=headers)
             if resp.status_code == 200:
                 data = resp.json()
@@ -88,17 +148,12 @@ async def verify_github_repo_accessible(owner: str, repo: str, timeout_seconds: 
                 return True, None
             elif resp.status_code == 404:
                 return False, f"Repository '{owner}/{repo}' was not found on GitHub. Verify the URL."
-            elif resp.status_code == 403 and "rate limit" in resp.text.lower():
-                # If GitHub REST rate limited anonymous check, fallback to checking web URL
-                web_url = f"https://github.com/{owner}/{repo}"
-                web_resp = await client.head(web_url, headers={"User-Agent": "RepoMind-Verifier/1.0"})
-                if web_resp.status_code == 200:
-                    return True, None
-                return False, f"GitHub access returned HTTP {web_resp.status_code}."
+            elif resp.status_code in (403, 429) or "rate limit" in resp.text.lower():
+                return await _verify_via_git_ls_remote(owner, repo, timeout_seconds)
             else:
                 return False, f"GitHub responded with status {resp.status_code}."
     except httpx.TimeoutException:
-        return False, "Connection to GitHub timed out while verifying repository."
+        return await _verify_via_git_ls_remote(owner, repo, timeout_seconds)
     except Exception as e:
         return False, f"Could not verify repository accessibility: {str(e)}"
 

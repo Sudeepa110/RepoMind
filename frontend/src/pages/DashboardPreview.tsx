@@ -105,6 +105,27 @@ export const DashboardPreview: React.FC<DashboardPreviewProps> = ({
   const [fileLoading, setFileLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Deletion state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const handleDeleteRepository = async () => {
+    const repoId = details?.id || status?.repository_id;
+    if (!repoId) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await api.deleteRepository(repoId);
+      setShowDeleteModal(false);
+      onBack();
+    } catch (err: any) {
+      console.error('Delete repository error:', err);
+      setDeleteError(err.response?.data?.detail || err.message || 'Failed to delete repository');
+      setDeleting(false);
+    }
+  };
+
   // Search state
   const [searchMode, setSearchMode] = useState<'hybrid' | 'vector'>('hybrid');
   const [includeVector, setIncludeVector] = useState(true);
@@ -691,19 +712,86 @@ export const DashboardPreview: React.FC<DashboardPreviewProps> = ({
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
       {/* Top Navigation & Back Action */}
       <div className="mb-6 flex items-center justify-between">
-        <button
-          onClick={onBack}
-          className="flex items-center space-x-2 rounded-lg border border-slate-800 bg-slate-900/60 px-3.5 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:border-slate-700 hover:text-white"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          <span>Select Another Repository</span>
-        </button>
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={onBack}
+            className="flex items-center space-x-2 rounded-lg border border-slate-800 bg-slate-900/60 px-3.5 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:border-slate-700 hover:text-white"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span>Select Another Repository</span>
+          </button>
+
+          {(details?.id || status?.repository_id) && (
+            <button
+              onClick={() => setShowDeleteModal(true)}
+              disabled={deleting}
+              className="flex items-center space-x-1.5 rounded-lg border border-rose-900/40 bg-rose-950/20 px-3 py-1.5 text-xs font-medium text-rose-300 transition-colors hover:border-rose-700 hover:bg-rose-900/40 hover:text-rose-100 disabled:opacity-50"
+              title="Delete repository and remove all indexed data"
+            >
+              {deleting ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="h-3.5 w-3.5" />
+              )}
+              <span>{deleting ? 'Deleting...' : 'Delete Repository'}</span>
+            </button>
+          )}
+        </div>
 
         <div className="flex items-center space-x-2 text-xs text-slate-400">
           <span className={`h-2 w-2 rounded-full ${isCompleted ? 'bg-emerald-400' : isFailed ? 'bg-rose-400' : 'bg-indigo-400 animate-ping'}`} />
           <span>{status?.current_stage || 'Initializing Ingestion...'}</span>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-2xl border border-rose-500/30 bg-slate-900 p-6 shadow-2xl">
+            <div className="flex items-center space-x-3 text-rose-400">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-500/10 border border-rose-500/20">
+                <Trash2 className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">Delete Repository?</h3>
+                <p className="text-xs text-slate-400">This action cannot be undone.</p>
+              </div>
+            </div>
+            <p className="mt-4 text-xs text-slate-300 leading-relaxed">
+              This will permanently delete the repository workspace for{' '}
+              <span className="font-semibold text-white">{validation.owner}/{validation.repo}</span>,
+              along with all ChromaDB vector embeddings, NetworkX knowledge graph indices, SQLite metadata, and conversation history.
+            </p>
+            {deleteError && (
+              <div className="mt-3 rounded-lg border border-rose-500/40 bg-rose-500/10 p-2.5 text-xs text-rose-300">
+                {deleteError}
+              </div>
+            )}
+            <div className="mt-6 flex justify-end space-x-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setDeleteError(null);
+                }}
+                disabled={deleting}
+                className="rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-xs font-medium text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteRepository}
+                disabled={deleting}
+                className="flex items-center space-x-1.5 rounded-lg bg-rose-600 px-4 py-2 text-xs font-semibold text-white hover:bg-rose-500 transition-colors disabled:opacity-50"
+              >
+                {deleting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                <span>{deleting ? 'Deleting...' : 'Confirm Delete'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Repository Main Header Card */}
       <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 backdrop-blur-md">
@@ -794,14 +882,14 @@ export const DashboardPreview: React.FC<DashboardPreviewProps> = ({
         <div className="mt-6 border-t border-slate-800/80 pt-6">
           <div className="mb-2 flex items-center justify-between text-xs">
             <span className="font-semibold text-slate-300 uppercase tracking-wider">
-              Architecture Pipeline (Phases 1-4)
+              Hybrid Indexing Pipeline (AST + Vector + Graph + BM25)
             </span>
             <span className="text-indigo-400 font-mono">
-              {isCompleted ? 'Phase 4: Structure-Aware Vector RAG Ready' : 'Processing Pipeline...'}
+              {isCompleted ? 'Hybrid Vector RAG + GraphRAG + BM25 Ready' : 'Processing Pipeline...'}
             </span>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-6">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
             <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-2.5">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-semibold text-emerald-400">1. URL Check</span>

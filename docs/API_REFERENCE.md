@@ -1,87 +1,111 @@
 # API Reference
 
-## Base URL
-`/api/v1`
+## Base URL & Interactive Docs
+- **Base Prefix**: `/api/v1`
+- **Swagger / OpenAPI Docs**: `/api/v1/docs` (`/api/v1/openapi.json`)
 
-All responses are formatted in JSON unless specified otherwise (e.g. SSE for streaming).
+All responses use JSON unless specified otherwise (`text/event-stream` SSE for `/chat/stream`). When `ENVIRONMENT=production` and `DEBUG=false`, `500` error responses omit internal tracebacks.
 
 ---
 
-## 1. System Health
+## 1. System Health & Readiness Probes
 
 ### `GET /api/v1/health`
-Checks server readiness, hardware acceleration status, and system metadata.
+Liveness check reporting backend status, software version, CPU/CUDA hardware mode, and boolean `gemini_configured` flag (API key secret is never returned).
 
-**Response `200 OK`**:
-```json
-{
-  "status": "ok",
-  "version": "0.1.0",
-  "environment": "development",
-  "gpu_available": false,
-  "gpu_name": null,
-  "gemini_configured": false,
-  "timestamp": "2026-11-07T14:47:18.248659+00:00",
-  "system_info": {
-    "python_version": "3.15.0",
-    "platform": "Windows-11-10.0.26300-SP0",
-    "processor": "Intel64 Family 6 Model 183 Stepping 1"
-  }
-}
-```
+### `GET /api/v1/ready`
+Container orchestrator readiness probe verifying SQLite DB connectivity (`SELECT 1`), write permissions on `STORAGE_DIR`, and presence of `chroma`, `graphs`, and `keywords` storage directories (`200 ready` or `503 not_ready`).
 
 ---
 
-## 2. Repositories
+## 2. Repository Ingestion, Exploration & Lifecycle
 
-### `GET /api/v1/repositories/demos`
-Returns curated public demo repositories for one-click exploration.
+Prefix: `/api/v1/repositories`
 
-**Response `200 OK`**:
-```json
-[
-  {
-    "name": "FastAPI",
-    "owner": "fastapi",
-    "url": "https://github.com/fastapi/fastapi",
-    "description": "Modern, fast web framework for building APIs with Python.",
-    "category": "Python / Web",
-    "language": "Python",
-    "stars": "78k+"
-  }
-]
-```
-
-### `POST /api/v1/repositories/validate`
-Validates a GitHub URL against SSRF attacks, format violations, and tests public availability.
-
-**Request Body**:
-```json
-{
-  "url": "https://github.com/fastapi/fastapi"
-}
-```
-
-**Response `200 OK`**:
-```json
-{
-  "is_valid": true,
-  "owner": "fastapi",
-  "repo": "fastapi",
-  "normalized_url": "https://github.com/fastapi/fastapi",
-  "is_accessible": true,
-  "message": "Repository validated and accessible."
-}
-```
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/demos` | Curated public GitHub demo repositories. |
+| `POST` | `/validate` | Strict SSRF/HTTPS GitHub URL check + availability verification (`api.github.com` + `git ls-remote` fallback). |
+| `POST` | `/analyze` | Initiates async shallow clone (`depth=1`), AST parsing, Vector/Graph/Keyword indexing. Returns `429` if `MAX_CONCURRENT_INDEXING_JOBS` exceeded. |
+| `GET` | `` | Lists up to 50 recent indexed repositories. |
+| `GET` | `/{repository_id}` | Returns language breakdown, manifest files, entry points, commit hash, and README preview. |
+| `GET` | `/{repository_id}/status` | Polls indexing stage and percentage progress (`0–100`). |
+| `GET` | `/{repository_id}/tree` | Returns nested file directory hierarchy. |
+| `GET` | `/{repository_id}/file?path=...` | Reads source file content safely (enforces `is_relative_to` traversal block `400` and blocks secret/excluded files `403`). |
+| `POST` | `/{repository_id}/index` | Triggers incremental or forced vector/graph/keyword re-indexing. |
+| `GET` | `/{repository_id}/index/status` | Reports indexed ChromaDB chunk count and vector collection status. |
+| `POST` | `/{repository_id}/search` | Direct semantic Vector search across code chunks with optional filters (`language`, `file_path`, `symbol_type`). |
+| `DELETE` | `/{repository_id}` | Full cascade delete: wipes SQLite child records (`chat_messages`, `conversations`, `file_metadata`, `indexing_jobs`), ChromaDB collection, NetworkX JSON graph, SQLite FTS5 DB, tree JSON, LRU cache, and temporary cloned workspace. |
 
 ---
 
-## Planned Endpoints (Upcoming Phases)
+## 3. Adaptive Hybrid Retrieval
 
-- `POST /api/v1/repositories/analyze`: Initiates background cloning and AST parsing (Phase 2).
-- `GET /api/v1/repositories/{id}/status`: Polls progress of indexing job (Phase 2).
-- `GET /api/v1/repositories/{id}/files`: Returns directory tree for Code Explorer (Phase 3).
-- `GET /api/v1/repositories/{id}/file`: Retrieves raw syntax file with line numbering (Phase 3).
-- `POST /api/v1/chat/{repo_id}`: Initiates multi-turn RAG chat with streaming citations (Phase 6).
-- `GET /api/v1/intelligence/architecture/{id}`: Returns architecture component graph (Phase 7).
+Prefix: `/api/v1/repositories/{repository_id}`
 
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `POST` | `/hybrid-search` | Adaptive Query Router + Vector + Graph + BM25 search combined via Reciprocal Rank Fusion (RRF) with assembled citation context. |
+| `POST` | `/analyze-query` | Diagnostic endpoint classifying `QueryIntent`, extracting symbol identifiers, and inspecting routing strategy weights. |
+
+---
+
+## 4. Knowledge Graph Traversal (NetworkX)
+
+Prefix: `/api/v1/repositories/{repository_id}/graph`
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/status` | Total graph nodes, edges, density, and file persistence status. |
+| `GET` | `/nodes` | Lists graph nodes filterable by `node_type` (`FUNCTION`, `CLASS`, `FILE`, etc.) or `search` query. |
+| `GET` | `/edges` | Lists typed edges (`CALLS`, `IMPORTS`, `CONTAINS`, `INHERITS`, `IMPLEMENTS`). |
+| `GET` | `/callers?symbol=...` | Reverse invocation lookup (who calls target symbol). |
+| `GET` | `/callees?symbol=...` | Forward invocation lookup (what target symbol invokes). |
+| `GET` | `/inheritance?symbol=...` | Base classes and subclasses hierarchy. |
+| `GET` | `/dependencies?path=...` | File/module import dependency inspection. |
+| `GET` | `/paths?source=...&target=...` | Execution paths connecting two symbols. |
+| `GET` | `/impact?symbol=...` | Direct and transitive blast-radius impact nodes. |
+| `GET` | `/subgraph?symbol=...` | Localized neighborhood graph for interactive frontend rendering. |
+
+---
+
+## 5. Grounded Conversational Chat & Citations
+
+Prefix: `/api/v1/repositories/{repository_id}`
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `POST` | `/conversations` | Initializes a repository-isolated conversation session. |
+| `GET` | `/conversations` | Lists conversation history summaries for the repository. |
+| `GET` | `/conversations/{conversation_id}` | Fetches ordered conversation messages, citations, and `insufficient_evidence` flags. |
+| `DELETE` | `/conversations/{conversation_id}` | Deletes a specific conversation session and its messages. |
+| `POST` | `/chat` | Synchronous grounded generation: hybrid retrieval, repository-wide endpoint matching, evidence sufficiency gating (`SUFFICIENT`, `PARTIAL`, `INSUFFICIENT`, `NO_EVIDENCE`), optional Gemini synthesis, and citation verification. |
+| `POST` | `/chat/stream` | Server-Sent Events (SSE) stream emitting `retrieval_started`, `retrieval_completed`, `generation_started`, `token`, `citation`, `warning`, `error`, and `done` events. |
+
+---
+
+## 6. Advanced Repository Intelligence
+
+Prefix: `/api/v1/repositories/{repository_id}/intelligence`
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `POST` | `/impact-analysis` | Multi-file blast radius classifying `DIRECT`, `INDIRECT`, `STRUCTURAL`, and `POTENTIAL` impacted symbols + deterministic risk score. |
+| `POST` | `/execution-flow` | Cross-file control-flow tracing with branch points and external boundary flags. |
+| `POST` | `/dependencies` | Martin's Instability index ($I = \text{Out} / (\text{In} + \text{Out})$), tightly coupled file pairs, and architectural layers. |
+| `POST` | `/bug-investigation` | Static detection of unresolved calls, unguarded API error handlers, null hazards, and resource leaks. |
+| `POST` | `/risk-assessment` | Deterministic change-risk scoring breakdown (`LOW`, `MEDIUM`, `HIGH`, `CRITICAL`). |
+| `POST` | `/test-recommendations` | Discovers existing test files and recommends `UNIT`, `INTEGRATION`, and `REGRESSION` tests with assertions. |
+| `POST` | `/documentation` | Generates grounded technical markdown specs for classes, functions, modules, or endpoints. |
+
+---
+
+## 7. Evaluation & Benchmarking
+
+Prefix: `/api/v1/evaluation`
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/summary` | Returns cached evaluation metrics: 4-way retrieval comparison, 72-query balanced abstention, 18-query held-out abstention, grounding/citation metrics, and intelligence accuracy. |
+| `GET` | `/system-profile` | Hardware environment profile, RSS memory, indexing stage breakdown, and query latency percentiles (p50/p95/p99). |
+| `POST` | `/run` | Executes the complete reproducible evaluation suite across all 6 repositories and persists raw results to `backend/evaluation/results/benchmark_results.json`. |

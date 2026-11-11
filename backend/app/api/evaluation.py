@@ -11,6 +11,7 @@ from typing import Dict, Any, Optional
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel, Field
 
+from backend.app.config import settings
 from backend.evaluation.profiler import SystemProfiler, get_current_process_memory_mb
 from backend.evaluation.benchmark_orchestrator import RESULTS_FILE, run_full_evaluation_suite
 
@@ -53,6 +54,8 @@ async def get_evaluation_summary():
             "metadata": cached.get("metadata", {}),
             "indexing_performance": cached.get("indexing_performance", {}),
             "retrieval_strategy_comparison": cached.get("retrieval_strategy_comparison", {}),
+            "balanced_abstention_benchmark": cached.get("balanced_abstention_benchmark", {}),
+            "held_out_abstention_benchmark": cached.get("held_out_abstention_benchmark", {}),
             "grounding_and_citations": cached.get("grounding_and_citations", {}),
             "graph_and_intelligence": cached.get("graph_and_intelligence", {}),
             "system_latency_profiling": cached.get("system_latency_profiling", {}),
@@ -136,4 +139,7 @@ async def trigger_evaluation_run():
         )
     except Exception as e:
         logger.exception("Evaluation run failed")
-        raise HTTPException(status_code=500, detail=f"Evaluation execution failed: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Evaluation execution failed: {str(e)}" if settings.DEBUG else "Evaluation execution failed due to an internal error.",
+        )

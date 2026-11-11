@@ -396,6 +396,30 @@ Phase 9 establishes a reproducible evaluation engine and empirical benchmarking 
    - Full React UI displaying 4-way comparison tables, hardware profile, pipeline stage durations, grounding & safety stats, and intelligence benchmarks.
    - Live on-demand benchmark runner communicating via `/api/v1/evaluation/run`.
 
+---
+
+## 10. Phase 10: Productization, Full-Repository Endpoint Discovery & Production Hardening
+
+Phase 10 transforms RepoMind into a complete, hardened, deployment-ready product while preserving the core **Hybrid Vector RAG + GraphRAG + BM25** architecture:
+
+1. **Full-Repository Structural Endpoint Discovery (`backend/app/retrieval/endpoint_matcher.py` & `keyword_search.py`)**:
+   - Instead of restricting route inspection to the top-$k$ retrieved chunks, `evaluate_evidence_sufficiency()` fetches all indexed repository chunks via `KeywordSearchEngine.get_all_repository_chunks()`.
+   - Reconstructs file sources across split chunks (so class-level `@RequestMapping("/owners/{ownerId}")` composes reliably with method-level `@GetMapping`/`@PostMapping` chunks) and resolves cross-file router mounting across Express (`app.use('/api/users', userRouter)`), Flask (`app.register_blueprint(auth_bp, url_prefix=...)`), and FastAPI (`app.include_router(..., prefix=...)`).
+   - Distinguishes `EXACT_MATCH`, `METHOD_MISMATCH`, `PREFIX_ONLY`, and `NOT_FOUND` across static and parameterized routes (`{id}`, `:id`, `<int:id>`).
+
+2. **Exact-Symbol Tie-Breaking in FTS5 BM25 (`backend/app/retrieval/keyword_search.py`)**:
+   - SQL ordering prioritizes exact `LOWER(symbol_name)` matches ahead of length-penalized BM25 method/doc fragments, preventing large class definitions (e.g., `class Serializer` split into sub-chunks) from being buried behind short helper methods or documentation files.
+
+3. **Backend Reliability & Lifecycle Hygiene (`backend/app/main.py`, `api/repositories.py`)**:
+   - Startup recovery (`recover_interrupted_jobs()`) resets dangling `processing`/`queued` jobs after container restarts.
+   - Full SQLite cascade cleanup on `DELETE /api/v1/repositories/{id}` removes `chat_messages`, `conversations`, `file_metadata`, `indexing_jobs`, ChromaDB collections, NetworkX graphs, FTS5 databases, and workspace clones.
+   - Enforces `MAX_CONCURRENT_INDEXING_JOBS` (`HTTP 429`), readiness probing (`GET /api/v1/ready`), environment-driven `CORS_ORIGINS`, redirect-host validation, `is_relative_to` traversal containment, and secret file `HTTP 403` guards.
+
+4. **Frontend UX & Containerized Deployment**:
+   - Complete Delete Repository modal confirmation workflow in `DashboardPreview.tsx`, cross-view navigation in `Header.tsx`, and configurable `VITE_API_BASE_URL` for Nginx proxy or standalone hosting.
+   - Production Docker Compose with `/api/v1/ready` health checks and `./storage` persistence volume.
+
+
 
 
 

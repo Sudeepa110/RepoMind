@@ -7,7 +7,13 @@ from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from backend.app.config import settings
 from backend.app.database.session import get_db
-from backend.app.database.models import RepositoryModel, IndexingJobModel, FileMetadataModel
+from backend.app.database.models import (
+    RepositoryModel,
+    IndexingJobModel,
+    FileMetadataModel,
+    ConversationModel,
+    ChatMessageModel,
+)
 from backend.app.schemas.repository import (
     RepositoryValidateRequest,
     RepositoryValidationResponse,
@@ -135,6 +141,23 @@ async def analyze_repository_endpoint(
         )
 
     try:
+        from sqlalchemy import func
+        active_jobs_stmt = select(func.count()).select_from(IndexingJobModel).where(
+            IndexingJobModel.status.in_(["processing", "queued"])
+        )
+        active_count = (await db.execute(active_jobs_stmt)).scalar_one() or 0
+        if active_count >= settings.MAX_CONCURRENT_INDEXING_JOBS:
+            existing_stmt = select(RepositoryModel).where(
+                RepositoryModel.url == f"https://github.com/{owner}/{name}",
+                RepositoryModel.status == "ready"
+            )
+            existing_ready = (await db.execute(existing_stmt)).scalar_one_or_none()
+            if not existing_ready or req.force_reindex:
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail=f"Maximum concurrent indexing jobs ({settings.MAX_CONCURRENT_INDEXING_JOBS}) reached. Please wait for an active job to finish.",
+                )
+
         repo, job, is_ready = await get_or_create_repository(
             repo_url=req.url,
             db=db,
@@ -159,10 +182,12 @@ async def analyze_repository_endpoint(
             message="Repository queued for background ingestion, AST parsing, and vector indexing.",
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to initiate repository analysis: {str(e)}",
+            detail=f"Failed to initiate repository analysis: {str(e)}" if settings.DEBUG else "Failed to initiate repository analysis due to an internal error.",
         )
 
 @router.get("/{repository_id}/status", response_model=RepositoryStatusResponse)
@@ -255,7 +280,10 @@ async def get_repository_tree(
         with open(tree_path, "r", encoding="utf-8") as tf:
             return json.load(tf)
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to read tree: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to read tree: {str(e)}" if settings.DEBUG else "Failed to read repository tree.",
+        )
 
 @router.get("/{repository_id}/file", response_model=FileContentResponse)
 async def get_repository_file(
@@ -265,7 +293,7 @@ async def get_repository_file(
 ):
     """
     Safely retrieves a specific sanitized source file's contents with line count.
-    Guarded against path traversal attacks.
+    Guarded against path traversal and secret file exposure attacks.
     """
     clean_path = path.replace("\\", "/").strip("/")
     if ".." in clean_path.split("/") or clean_path.startswith("/"):
@@ -277,10 +305,20 @@ async def get_repository_file(
     try:
         resolved_target = target_file.resolve()
         resolved_workspace = workspace_dir.resolve()
-        if not str(resolved_target).startswith(str(resolved_workspace)):
+        if not resolved_target.is_relative_to(resolved_workspace):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Access denied: path outside workspace.")
+    except HTTPException:
+        raise
     except Exception:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Path resolution error.")
+
+    from backend.app.ingestion.file_filter import is_secret_file, EXCLUDED_DIRS
+    rel_parts = clean_path.split("/")
+    if is_secret_file(target_file.name) or any(part in EXCLUDED_DIRS for part in rel_parts):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access to restricted, excluded, or secret files is prohibited.",
+        )
 
     if not target_file.exists() or not target_file.is_file():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"File '{clean_path}' not found in repository.")
@@ -304,7 +342,10 @@ async def get_repository_file(
             content=content,
         )
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error reading file: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error reading file: {str(e)}" if settings.DEBUG else "Error reading source file.",
+        )
 
 @router.get("", response_model=List[RepositoryListItem])
 async def list_repositories(db: AsyncSession = Depends(get_db)):
@@ -478,7 +519,11 @@ async def delete_repository(
     # 5. Invalidate Hybrid Retriever response cache
     hybrid_retriever.invalidate_cache(repository_id)
 
-    # 6. Cleanup SQLite record
+    # 6. Cleanup SQLite child records and master repository record
+    await db.execute(delete(ChatMessageModel).where(ChatMessageModel.repository_id == repository_id))
+    await db.execute(delete(ConversationModel).where(ConversationModel.repository_id == repository_id))
+    await db.execute(delete(FileMetadataModel).where(FileMetadataModel.repository_id == repository_id))
+    await db.execute(delete(IndexingJobModel).where(IndexingJobModel.repository_id == repository_id))
     await db.delete(repo)
     await db.commit()
 

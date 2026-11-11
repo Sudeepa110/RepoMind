@@ -15,6 +15,17 @@ export const Header: React.FC<HeaderProps> = ({
   currentView,
   onNavigate,
 }) => {
+  const handleSectionLink = (sectionId: string) => {
+    if (currentView !== 'landing') {
+      onNavigate('landing');
+      setTimeout(() => {
+        document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth' });
+      }, 60);
+    } else {
+      document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
   return (
     <header className="sticky top-0 z-50 border-b border-slate-800 bg-[#090d16]/90 backdrop-blur-md">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
@@ -59,30 +70,39 @@ export const Header: React.FC<HeaderProps> = ({
                 : 'text-slate-300 hover:text-white'
             }`}
           >
-            Benchmarks (Phase 9)
+            Benchmarks
           </button>
-          <a
-            href="#how-it-works"
+          <button
+            type="button"
+            onClick={() => handleSectionLink('how-it-works')}
             className="text-sm font-medium text-slate-300 transition-colors hover:text-white"
           >
             Architecture
-          </a>
-          <a
-            href="#features"
+          </button>
+          <button
+            type="button"
+            onClick={() => handleSectionLink('features')}
             className="text-sm font-medium text-slate-300 transition-colors hover:text-white"
           >
             Capabilities
-          </a>
-          <a
-            href="#tech-stack"
+          </button>
+          <button
+            type="button"
+            onClick={() => handleSectionLink('tech-stack')}
             className="text-sm font-medium text-slate-300 transition-colors hover:text-white"
           >
             Tech Stack
-          </a>
+          </button>
         </nav>
 
-        {/* System & Health Status */}
+        {/* System & Health Status + Mobile View Switcher */}
         <div className="flex items-center space-x-3">
+          <button
+            onClick={() => onNavigate(currentView === 'evaluation' ? 'landing' : 'evaluation')}
+            className="rounded-lg border border-slate-800 bg-slate-900/70 px-2.5 py-1 text-xs font-medium text-indigo-300 transition-colors hover:border-indigo-500/50 md:hidden"
+          >
+            {currentView === 'evaluation' ? 'Home' : 'Benchmarks'}
+          </button>
           {healthLoading ? (
             <div className="flex items-center space-x-2 rounded-full border border-slate-800 bg-slate-900/60 px-3 py-1 text-xs text-slate-400">
               <div className="h-2 w-2 animate-ping rounded-full bg-slate-400" />

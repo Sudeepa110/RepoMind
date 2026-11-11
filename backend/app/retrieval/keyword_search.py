@@ -277,7 +277,19 @@ class KeywordSearchEngine:
                     sql += " AND m.symbol_type = ?"
                     params.append(symbol_type.upper())
 
-                sql += " ORDER BY bm25_score ASC LIMIT ?"
+                lowered_tokens = [t.lower() for t in tokens if t.lower() not in FTS_COMMON_STOP_WORDS]
+                if not lowered_tokens:
+                    lowered_tokens = [t.lower() for t in tokens]
+
+                if lowered_tokens:
+                    placeholders = ", ".join(["?"] * len(lowered_tokens))
+                    sql += (
+                        f" ORDER BY (CASE WHEN LOWER(m.symbol_name) IN ({placeholders}) THEN 0 ELSE 1 END) ASC, "
+                        "bm25_score ASC LIMIT ?"
+                    )
+                    params.extend(lowered_tokens)
+                else:
+                    sql += " ORDER BY bm25_score ASC LIMIT ?"
                 params.append(top_k * 2)
 
                 try:
@@ -364,6 +376,55 @@ class KeywordSearchEngine:
                 conn.close()
 
         return results
+
+    def get_all_repository_chunks(self, repository_id: str) -> List[UnifiedSearchResult]:
+        """
+        Retrieves all indexed chunks for a repository from metadata storage,
+        allowing repository-wide structural scans (e.g., full-repository endpoint discovery).
+        """
+        db_path = self._get_db_path(repository_id)
+        if not db_path.exists():
+            return []
+
+        chunks: List[UnifiedSearchResult] = []
+        with self._lock:
+            conn = sqlite3.connect(db_path, timeout=15.0)
+            conn.row_factory = sqlite3.Row
+            try:
+                cursor = conn.execute(
+                    "SELECT chunk_id, repository_id, file_path, symbol_id, symbol_name, symbol_type, "
+                    "language, start_line, end_line, source_code, signature, docstring, context_header "
+                    "FROM chunks_meta ORDER BY file_path, start_line"
+                )
+                for r in cursor.fetchall():
+                    chunks.append(
+                        UnifiedSearchResult(
+                            chunk_id=r["chunk_id"],
+                            repository_id=r["repository_id"],
+                            file_path=r["file_path"],
+                            symbol_id=r["symbol_id"] or None,
+                            symbol_name=r["symbol_name"] or None,
+                            symbol_type=r["symbol_type"] or None,
+                            language=r["language"] or "text",
+                            start_line=r["start_line"],
+                            end_line=r["end_line"],
+                            source_code=r["source_code"],
+                            signature=r["signature"] or None,
+                            docstring=r["docstring"] or None,
+                            context_header=r["context_header"] or None,
+                            retrieval_source="KEYWORD",
+                            sources=["KEYWORD"],
+                            original_score=1.0,
+                            normalized_score=1.0,
+                            rrf_score=0.0,
+                            confidence=1.0,
+                        )
+                    )
+            except sqlite3.Error as e:
+                logger.warning(f"Failed to scan chunks_meta for {repository_id}: {e}")
+            finally:
+                conn.close()
+        return chunks
 
     def delete_repository(self, repository_id: str) -> bool:
         """Deletes the SQLite FTS5 database file for a repository."""

@@ -1,77 +1,147 @@
 # RepoMind
 
 > **AI-Powered GitHub Repository Intelligence Platform**  
-> *Hybrid Vector RAG + GraphRAG for Deep Code Understanding*  
-> Interact with any public GitHub codebase using natural language, AST syntax parsing, dense/sparse vector retrieval, and a knowledge graph representing function calls, dependencies, and component relationships.
+> *Hybrid Vector RAG + GraphRAG + BM25 Keyword Search grounded in Tree-sitter ASTs and verified source citations.*
+
+RepoMind lets developers submit any **public GitHub repository URL** (no login or CLI installation required) and explore its codebase through semantic search, structural knowledge graphs, grounded conversational Q&A, multi-file impact analysis, bug investigation, test recommendations, and empirical benchmarking.
 
 ---
 
-## Architecture: Hybrid Vector RAG + GraphRAG
+## Why RepoMind Is Different From a Generic Chatbot
 
-RepoMind is built on a **unified code understanding foundation** powered by Tree-sitter. Code elements extracted from source files flow into two parallel pipelines:
+A generic LLM chatbot either guesses answers from training weights or embeds arbitrary raw text slices—causing hallucinated function names, fabricated HTTP endpoints, stale line references, and broken cross-file reasoning.
 
-1. **Vector RAG Pipeline**: Structure-aware chunking, local dense embeddings (`sentence-transformers/all-MiniLM-L6-v2`), and persistent ChromaDB storage for semantic concept retrieval.
-2. **GraphRAG Pipeline**: Knowledge graph construction via NetworkX (`CONTAINS`, `IMPORTS`, `CALLS`, `INHERITS`, `IMPLEMENTS`) for structural and call-hierarchy traversal.
-3. **Unified Hybrid Retrieval**: Query intent router directs queries to Vector RAG, GraphRAG, or a fused hybrid context, feeding Google Gemini to generate factually grounded answers with mandatory line citations.
+RepoMind enforces **structural codebase grounding at every stage**:
+1. **Single-Source Tree-sitter AST Foundation**: Functions, methods, classes, interfaces, imports, and call sites are parsed statically across Python, TypeScript, JavaScript, Java, C, C++, and Go using identical symbol coordinates (`{repo_id}:{file_path}#{symbol}`).
+2. **Three Complementary Retrieval Engines**: Semantic Vector RAG (`ChromaDB`), Structural GraphRAG (`NetworkX`), and Lexical BM25 (`SQLite FTS5`) run via an **Adaptive Query Router** and fuse results via **Reciprocal Rank Fusion (RRF)**.
+3. **Pre-Generation Evidence Sufficiency Gate & Full-Repo Endpoint Matcher**: Before an LLM ever generates a word, deterministic checks verify whether queried symbols, qualified members (`Class.method`), external frameworks, or HTTP endpoints (`GET /owners/{id}/pets/new`) actually exist across the full indexed repository—abstaining cleanly (`NO_EVIDENCE` / `INSUFFICIENT`) when absent.
+4. **Coordinate-Verified Inline Citations**: Output claims bind directly to exact file paths and 1-indexed line intervals (`[file:start-end]`) verified against indexed chunks.
 
 ---
 
-## Key Features
+## Architecture: Hybrid Vector RAG + GraphRAG + BM25
 
-- **Public Zero-Cost Demo**: Anyone can submit a public GitHub repository without registration or installing software locally.
-- **Tree-sitter Code Understanding**: Multi-language AST parsing (Python, TypeScript, JavaScript, Java, C, C++, Go) extracting symbols with exact line coordinates.
-- **Dual Pipeline Knowledge Engine**: Combines ChromaDB vector search with NetworkX graph traversal.
-- **Grounded Answers & Citations**: Clickable file and line citations for every answer.
-- **Hardened Security Boundary**: Strict SSRF prevention, isolated temporary workspaces, and zero execution of cloned repository code.
+```mermaid
+flowchart TD
+    URL["Public GitHub URL"] --> Validate["SSRF & Redirect Validation"]
+    Validate --> Clone["Isolated Shallow Clone (depth=1, core.symlinks=false)"]
+    Clone --> Filter["Secret & Binary Filter (.env, keys, node_modules stripped)"]
+    Filter --> TS["Tree-sitter Multi-Language AST Parser"]
+
+    TS --> Vector["Vector RAG Pipeline\n(Structure-Aware Chunks -> MiniLM-L6-v2 -> ChromaDB)"]
+    TS --> Graph["GraphRAG Pipeline\n(Nodes & CALLS/IMPORTS/INHERITS Edges -> NetworkX JSON)"]
+    TS --> Keyword["BM25 Keyword Pipeline\n(Exact Symbol & Text Search -> SQLite FTS5)"]
+
+    Query["Developer Question"] --> Router{"Adaptive Query Router"}
+    Router --> Vector
+    Router --> Graph
+    Router --> Keyword
+
+    Vector --> RRF["Reciprocal Rank Fusion (RRF)"]
+    Graph --> RRF
+    Keyword --> RRF
+
+    RRF --> Gate{"Evidence Sufficiency & Full-Repo Endpoint Gate"}
+    Gate -->|NO_EVIDENCE / INSUFFICIENT| Abstain["Honest Abstention (Zero Fabrication)"]
+    Gate -->|SUFFICIENT / PARTIAL| Gen["Optional Google Gemini Synthesis"]
+    Gen --> Cite["Citation Validator & Interactive UI"]
+```
+
+---
+
+## Core Capabilities
+
+### Implemented & Production-Hardened Features
+- **Secure Public Repo Ingestion**: Strict HTTPS `github.com` allowlist, HTTP redirect hostname checking, non-interactive `GIT_ALLOW_PROTOCOL=https` shallow cloning, automatic exclusion of secrets/binaries, file caps (`MAX_REPO_SIZE_MB`, `MAX_INDEXED_FILES`, `MAX_CONCURRENT_INDEXING_JOBS` `HTTP 429`), and startup recovery of interrupted jobs.
+- **Interactive Code Explorer**: Full directory tree + line-numbered source viewer guarded against path traversal (`is_relative_to`) and secret exposure (`HTTP 403`).
+- **Adaptive Hybrid Retrieval & Knowledge Graph UI**: Intent classification, per-strategy toggling (Vector / Graph / Keyword), interactive neighborhood subgraph, caller/callee explorer, and impact radius viewer.
+- **Grounded Conversational Chat**: Multi-turn SSE streaming chat with conversation isolation per repository, clickable file citations jumping straight to line ranges, and optional Gemini integration (`GEMINI_API_KEY` not required for search, AST, graph, or intelligence APIs).
+- **Advanced Repository Intelligence Workspace**:
+  - Multi-file **Change Impact Analysis** (`DIRECT`, `INDIRECT`, `STRUCTURAL`, `POTENTIAL`)
+  - **Execution Flow Tracing** across files
+  - **Dependency Coupling & Martin's Instability Index**
+  - **Static Bug Investigation** (unresolved calls, unguarded API handlers, resource leaks)
+  - **Deterministic Risk Assessment**, **Test Recommendations**, and **Technical Documentation Generation**
+- **Repository Lifecycle Deletion**: One-click delete with modal confirmation triggering full cascade wipe of SQLite child records (`chat_messages`, `conversations`, `file_metadata`, `indexing_jobs`), ChromaDB collection, NetworkX JSON graph, SQLite FTS5 DB, directory tree, and temporary workspace.
+- **Evaluation & Benchmarking Dashboard**: Built-in 4-way retrieval comparison, balanced 72-query & held-out 18-query abstention metrics, system profiler, and prompt injection benchmarks.
+
+### Experimental / Partially Supported Boundaries
+- **Dynamic Runtime Behavior**: Static Tree-sitter parsing cannot statically resolve dynamic Python reflection (`getattr()`), computed string route paths (e.g., `app.add_url_rule(dynamic_prefix() + "/x")`), or dynamic JS indexing (`obj[key]()`).
+- **Host Container Persistence**: Free cloud containers with ephemeral filesystems erase `./storage` on restart unless a durable persistent volume is attached at `/app/storage`.
+- **Upper-Snake Config Token Splitting**: In held-out testing, single-token compound uppercase identifiers (`ENABLE_QUANTUM_ENCRYPTION_LAYER`) escaped word-level subject filters (`1/9` held-out false answer); sub-token identifier splitting remains an open future enhancement.
 
 ---
 
 ## Technology Stack
 
-- **Frontend**: React 19, TypeScript, Vite, Tailwind CSS v4, Lucide React, Axios.
-- **Backend API**: Python 3.11+, FastAPI, Uvicorn, Pydantic v2, HTTPX.
-- **Code Parsing**: Tree-sitter multi-language grammars.
-- **Vector Storage**: ChromaDB (isolated per-repository collections).
-- **Knowledge Graph**: NetworkX via abstract `BaseGraphStore` interface.
-- **Embeddings**: Sentence Transformers (`sentence-transformers/all-MiniLM-L6-v2`).
-- **LLM Reasoning**: Google Gemini API (via eligible free-tier Google AI Studio).
-- **Metadata**: SQLite database via SQLAlchemy / aiosqlite.
+- **Frontend**: React 19, TypeScript, Vite 8, Tailwind CSS v4, Lucide Icons, Axios
+- **Backend**: Python 3.11+, FastAPI, Uvicorn, Pydantic v2, HTTPX, SQLAlchemy (Async + aiosqlite)
+- **AST & Code Understanding**: Tree-sitter (`tree-sitter-python`, `tree-sitter-javascript`, `tree-sitter-typescript`, `tree-sitter-java`, `tree-sitter-go`, `tree-sitter-c`, `tree-sitter-cpp`)
+- **Retrieval & Storage**: Sentence Transformers (`all-MiniLM-L6-v2` on CPU with optional CUDA), ChromaDB, NetworkX, SQLite FTS5
+- **Optional LLM Synthesis**: Google Gen AI SDK (`google-genai`, configured via `GEMINI_API_KEY`)
 
 ---
 
-## 10-Phase Roadmap
+## Quick Start & Setup Instructions
 
-- [x] **Phase 1**: Project Foundation & Baseline Scaffolding
-- [x] **Phase 2**: GitHub Repository Ingestion & File Filtering
-- [x] **Phase 3**: Tree-sitter Code Understanding & Shared Parsing Pipeline
-- [x] **Phase 4**: Vector RAG & ChromaDB Persistent Storage
-- [x] **Phase 5**: Knowledge Graph Construction using NetworkX
-- [x] **Phase 6**: Hybrid Retrieval Engine (Vector RAG + GraphRAG + Keyword Search)
-- [x] **Phase 7**: Gemini LLM Integration, Grounded Generation & Conversational Chat
-- [x] **Phase 8**: Advanced Repository Intelligence & Multi-File Change Impact Analysis
-- [x] **Phase 9**: Evaluation Framework, Real-World Benchmarking & Performance Optimization
-- [ ] **Phase 10**: Production Hardening, Multi-User Scaling & Public Cloud Deployment
-
----
-
-## Phase 9 Empirical Evaluation Highlights
-
-- **4-Way Retrieval Benchmarking**: Hybrid retrieval achieves **0.6429 Precision@1**, **0.6690 Recall@3**, **0.7857 MRR**, and **0.7068 nDCG@5** on standardized benchmark repositories, outperforming Vector-only and Keyword-only baselines.
-- **100% Grounding & Citation Validity**: All citations are strictly verified against evidence line intervals.
-- **100% Honest Abstention**: Zero hallucinations on unindexed out-of-scope topics.
-- **100% Adversarial Injection Defense**: Rejection of prompt override injection payloads.
-- **In-Memory Optimizations**: Constant-time Knowledge Graph symbol lookup (**0.033 ms**) and thread-safe LRU response caching (**0.027 ms**).
-- **Backend Test Suite**: **147 / 147 tests passing (100.0%)**.
-
----
-
-## Running Tests
-
+### Option 1: Docker Compose (Recommended)
 ```bash
-# Run backend test suite
-python -m pytest -v
+# 1. Configure environment variables
+cp .env.example .env
+# Optional: add GEMINI_API_KEY=your_key_here inside .env
 
-# Run frontend production build
-cd frontend
-npm run build
+# 2. Build and launch frontend (port 3000) + backend (port 8000)
+docker compose up --build -d
+
+# 3. Verify health & readiness
+curl http://localhost:8000/api/v1/health
+curl http://localhost:8000/api/v1/ready
 ```
+Open **[http://localhost:3000](http://localhost:3000)** in your browser. Stop cleanly with `docker compose down`.
+
+### Option 2: Local Development (Python + Node)
+
+#### Backend (`http://127.0.0.1:8000`)
+```bash
+python -m venv .venv
+source .venv/bin/activate       # Windows: .\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+cp .env.example .env
+uvicorn backend.app.main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+#### Frontend (`http://127.0.0.1:5173`)
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+---
+
+## Google Gemini API Configuration (Optional Zero-Cost Mode)
+
+RepoMind supports **zero-cost optional Gemini configuration**:
+1. Obtain a free API key from [Google AI Studio](https://aistudio.google.com/).
+2. Set `GEMINI_API_KEY` in `.env` on the **backend only** (the key is never shipped to frontend JavaScript).
+3. **Without `GEMINI_API_KEY`**: Code exploration, AST parsing, ChromaDB semantic search, NetworkX graph visualization, BM25 keyword search, impact analysis, dependency coupling, bug scanning, test recommendations, and evidence sufficiency gating all run 100% locally. Only the conversational prose synthesis step requires an active key (returning structured configuration guidance when unconfigured, quota-limited, or timed out).
+
+---
+
+## Verification & Empirical Evaluation Summary
+
+| Suite / Benchmark | Command / Dataset | Measured Outcome |
+| :--- | :--- | :--- |
+| **Full Backend Test Suite** | `pytest tests/ -q` | **170 / 170 passed** (51.31 s) |
+| **Evaluation Suite** | `pytest tests/evaluation/ -v` | **21 / 21 passed** (8.12 s) |
+| **Frontend Production Build** | `npm --prefix frontend run build` | **0 errors** (634 ms) |
+| **Dev Balanced Abstention** | 72 labeled queries (48 OOS, 24 Ans) | **100.0%** precision, recall, specificity |
+| **Held-Out Non-Tuning Set** | 18 unseen queries (9 OOS, 9 Ans) | **100.0%** precision, **88.89%** recall, **94.44%** accuracy |
+| **Live Real-World Repos** | `pallets/itsdangerous` & `sindresorhus/p-limit` | **5/5** answerable grounded (`1.0` claim support), **5/5** OOS abstained |
+
+Detailed documentation:
+- [Architecture Overview](file:///d:/Repomind/docs/ARCHITECTURE.md)
+- [API Reference](file:///d:/Repomind/docs/API_REFERENCE.md)
+- [Deployment & Environment Guide](file:///d:/Repomind/docs/DEPLOYMENT.md)
+- [Security & Privacy Specifications](file:///d:/Repomind/docs/SECURITY.md)
+- [Phase 10 Empirical Validation Report](file:///d:/Repomind/docs/PHASE_10_PRODUCTION_REPORT.md)

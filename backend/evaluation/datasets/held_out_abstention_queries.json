@@ -1,0 +1,146 @@
+[
+  {
+    "query_id": "HELDOUT_01_FUNC_TOTP",
+    "repo_name": "synthetic_auth_repo",
+    "query": "Where is the purge_expired_totp_secrets_worker function defined?",
+    "category": "nonexistent_function",
+    "should_abstain": true,
+    "target_symbol": "purge_expired_totp_secrets_worker"
+  },
+  {
+    "query_id": "HELDOUT_02_METHOD_QUANTUM",
+    "repo_name": "real_world_flask_subset",
+    "query": "How is the Flask.enable_quantum_telemetry method implemented?",
+    "category": "nonexistent_class_method",
+    "should_abstain": true,
+    "target_symbol": "Flask.enable_quantum_telemetry"
+  },
+  {
+    "query_id": "HELDOUT_03_TECH_KAFKA",
+    "repo_name": "synthetic_ts_express_repo",
+    "query": "Where is configureApacheKafkaProducer declared for publishing audit events?",
+    "category": "unsupported_technology",
+    "should_abstain": true,
+    "target_symbol": "configureApacheKafkaProducer"
+  },
+  {
+    "query_id": "HELDOUT_04_CONFIG_LAYER",
+    "repo_name": "real_world_flask_subset",
+    "query": "What does the ENABLE_QUANTUM_ENCRYPTION_LAYER setting control in Flask default_config?",
+    "category": "unavailable_config",
+    "should_abstain": true,
+    "target_symbol": "ENABLE_QUANTUM_ENCRYPTION_LAYER"
+  },
+  {
+    "query_id": "HELDOUT_05_PREFIX_PETCLINIC_BIOMETRIC",
+    "repo_name": "real_world_petclinic_subset",
+    "query": "How does the GET /owners/123/biometric_logs route process owner telemetry?",
+    "category": "similar_endpoint_prefix",
+    "should_abstain": true,
+    "target_symbol": "GET /owners/123/biometric_logs"
+  },
+  {
+    "query_id": "HELDOUT_06_METHOD_DELETE_PETS_NEW",
+    "repo_name": "real_world_petclinic_subset",
+    "query": "How is the DELETE /owners/42/pets/new endpoint implemented?",
+    "category": "incorrect_http_method",
+    "should_abstain": true,
+    "target_symbol": "DELETE /owners/42/pets/new"
+  },
+  {
+    "query_id": "HELDOUT_07_ROUTE_TS_SESSIONS_PURGE",
+    "repo_name": "synthetic_ts_express_repo",
+    "query": "Where is the route handler for DELETE /api/v2/users/sessions/purge defined?",
+    "category": "nonexistent_endpoint",
+    "should_abstain": true,
+    "target_symbol": "DELETE /api/v2/users/sessions/purge"
+  },
+  {
+    "query_id": "HELDOUT_08_SYMBOL_IPFS",
+    "repo_name": "real_world_ky_subset",
+    "query": "Where is the streamToBlockchainIpfs helper function defined in Ky?",
+    "category": "nonexistent_symbol",
+    "should_abstain": true,
+    "target_symbol": "streamToBlockchainIpfs"
+  },
+  {
+    "query_id": "HELDOUT_09_SERVICE_GENETIC",
+    "repo_name": "synthetic_java_petclinic_repo",
+    "query": "Find the definition of the GeneticAlgorithmBreedingService class.",
+    "category": "nonexistent_class",
+    "should_abstain": true,
+    "target_symbol": "GeneticAlgorithmBreedingService"
+  },
+  {
+    "query_id": "HELDOUT_10_ANS_COMPUTE_SHA256",
+    "repo_name": "synthetic_auth_repo",
+    "query": "Where is the compute_sha256 utility function defined?",
+    "category": "answerable_function",
+    "should_abstain": false,
+    "target_symbol": "compute_sha256"
+  },
+  {
+    "query_id": "HELDOUT_11_ANS_PETCLINIC_POST_NEW",
+    "repo_name": "real_world_petclinic_subset",
+    "query": "How is the POST /owners/42/pets/new endpoint implemented?",
+    "category": "answerable_endpoint",
+    "should_abstain": false,
+    "target_symbol": "POST /owners/42/pets/new"
+  },
+  {
+    "query_id": "HELDOUT_12_ANS_PETCLINIC_GET_EDIT",
+    "repo_name": "real_world_petclinic_subset",
+    "query": "How does GET /owners/10/pets/5/edit handle pet editing?",
+    "category": "answerable_endpoint",
+    "should_abstain": false,
+    "target_symbol": "GET /owners/10/pets/5/edit"
+  },
+  {
+    "query_id": "HELDOUT_13_ANS_TS_MIDDLEWARE",
+    "repo_name": "synthetic_ts_express_repo",
+    "query": "Where is the authenticateMiddleware function defined?",
+    "category": "answerable_function",
+    "should_abstain": false,
+    "target_symbol": "authenticateMiddleware"
+  },
+  {
+    "query_id": "HELDOUT_14_ANS_TS_VERIFY_JWT",
+    "repo_name": "synthetic_ts_express_repo",
+    "query": "How does TokenService.verifyJwtToken validate tokens?",
+    "category": "answerable_method",
+    "should_abstain": false,
+    "target_symbol": "TokenService.verifyJwtToken"
+  },
+  {
+    "query_id": "HELDOUT_15_ANS_FLASK_CONFIG",
+    "repo_name": "real_world_flask_subset",
+    "query": "Which modules does src/flask/app.py depend on and how is Flask configured?",
+    "category": "answerable_architecture",
+    "should_abstain": false,
+    "target_symbol": "Flask"
+  },
+  {
+    "query_id": "HELDOUT_16_ANS_KY_RETRY_METHOD",
+    "repo_name": "real_world_ky_subset",
+    "query": "Where is normalizeRetryMethod declared in Ky?",
+    "category": "answerable_function",
+    "should_abstain": false,
+    "target_symbol": "normalizeRetryMethod"
+  },
+  {
+    "query_id": "HELDOUT_17_ANS_JAVA_CLINIC_SVC",
+    "repo_name": "synthetic_java_petclinic_repo",
+    "query": "What dependencies does ClinicService use to find owners?",
+    "category": "answerable_dependencies",
+    "should_abstain": false,
+    "target_symbol": "ClinicService"
+  },
+  {
+    "query_id": "HELDOUT_18_ANS_PETCLINIC_CONTROLLER",
+    "repo_name": "real_world_petclinic_subset",
+    "query": "How is the PetController class structured for pet forms?",
+    "category": "answerable_class",
+    "should_abstain": false,
+    "target_symbol": "PetController"
+  }
+]

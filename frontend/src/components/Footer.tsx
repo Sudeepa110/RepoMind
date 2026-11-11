@@ -37,7 +37,7 @@ export const Footer: React.FC = () => {
               <span>GitHub</span>
             </a>
             <span className="text-slate-700">•</span>
-            <span className="text-slate-500">Phase 1 Foundation Active</span>
+            <span className="text-slate-500">Hybrid Vector RAG + GraphRAG</span>
           </div>
         </div>
 

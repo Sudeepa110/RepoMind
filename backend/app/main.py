@@ -12,11 +12,50 @@ from backend.app.api.chat import router as chat_router
 from backend.app.api.intelligence import router as intelligence_router
 from backend.app.api.evaluation import router as evaluation_router
 
+async def recover_interrupted_jobs():
+    """
+    On startup, identify any indexing jobs or repositories left in
+    in-progress states ('processing', 'indexing', 'queued', 'pending')
+    due to an unexpected process restart, and mark them as failed with
+    a clear recovery message.
+    """
+    try:
+        from datetime import datetime, timezone
+        from sqlalchemy import update
+        from backend.app.database.session import AsyncSessionLocal
+        from backend.app.database.models import IndexingJobModel, RepositoryModel
+
+        async with AsyncSessionLocal() as db:
+            await db.execute(
+                update(IndexingJobModel)
+                .where(IndexingJobModel.status.in_(["processing", "queued"]))
+                .values(
+                    status="failed",
+                    current_stage="Interrupted by server restart",
+                    error_message="Indexing process was interrupted by server restart. Please trigger reindexing.",
+                    completed_at=datetime.now(timezone.utc),
+                )
+            )
+            await db.execute(
+                update(RepositoryModel)
+                .where(RepositoryModel.status.in_(["indexing", "pending"]))
+                .values(
+                    status="failed",
+                    error_message="Indexing process was interrupted by server restart. Please trigger reindexing.",
+                )
+            )
+            await db.commit()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("Interrupted jobs recovery skipped or failed: %s", e)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup actions
     settings.init_directories()
     await init_db()
+    await recover_interrupted_jobs()
     yield
     # Shutdown cleanup if needed
 
@@ -66,5 +105,6 @@ async def root():
         "status": "operational",
         "docs": f"{settings.API_V1_STR}/docs",
         "health": f"{settings.API_V1_STR}/health",
+        "ready": f"{settings.API_V1_STR}/ready",
     }
 

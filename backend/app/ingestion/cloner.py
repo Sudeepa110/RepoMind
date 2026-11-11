@@ -118,9 +118,13 @@ class RepositoryCloner:
         # --depth 1: shallow clone only the latest commit
         # --single-branch: fetch only default branch to minimize data transfer
         # --no-tags: do not fetch tags
+        # -c core.symlinks=false: prevent malicious symlink traversal outside workspace
+        # -c submodule.recurse=false: prevent untrusted submodule fetches
         clone_cmd = [
             self.git_executable,
             "clone",
+            "-c", "core.symlinks=false",
+            "-c", "submodule.recurse=false",
             "--depth", "1",
             "--single-branch",
             "--no-tags",
@@ -133,6 +137,7 @@ class RepositoryCloner:
         git_env["GIT_TERMINAL_PROMPT"] = "0"
         git_env["GCM_INTERACTIVE"] = "never"
         git_env["GIT_ASKPASS"] = ""
+        git_env["GIT_ALLOW_PROTOCOL"] = "https"
 
         try:
             # Execute clone in isolated subprocess with strict timeout

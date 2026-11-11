@@ -3,6 +3,7 @@ import platform
 import shutil
 import subprocess
 from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 from backend.app.config import settings
 from backend.app.schemas.health import HealthResponse
 
@@ -55,6 +56,54 @@ async def get_health():
             "python_version": platform.python_version(),
             "platform": platform.platform(),
             "processor": platform.processor(),
+        },
+    )
+
+
+@router.get("/ready")
+async def get_readiness():
+    """
+    Readiness probe for container orchestrators and production deployment.
+    Verifies database connectivity, storage filesystem write permissions,
+    and vector/graph directories.
+    """
+    checks = {}
+    is_ready = True
+
+    # 1. Database check
+    try:
+        from backend.app.database.session import AsyncSessionLocal
+        from sqlalchemy import text
+        async with AsyncSessionLocal() as session:
+            await session.execute(text("SELECT 1"))
+        checks["database"] = "ok"
+    except Exception as e:
+        checks["database"] = f"error: {str(e)}"
+        is_ready = False
+
+    # 2. Storage filesystem writability
+    try:
+        settings.init_directories()
+        probe_file = settings.STORAGE_DIR / ".write_probe"
+        probe_file.write_text("probe", encoding="utf-8")
+        probe_file.unlink(missing_ok=True)
+        checks["storage_filesystem"] = "ok"
+    except Exception as e:
+        checks["storage_filesystem"] = f"error: {str(e)}"
+        is_ready = False
+
+    # 3. Vector and graph storage directories
+    checks["chroma_dir"] = "ok" if settings.CHROMA_PERSIST_DIR.exists() else "missing"
+    checks["graph_dir"] = "ok" if settings.GRAPH_PERSIST_DIR.exists() else "missing"
+    checks["keyword_dir"] = "ok" if settings.KEYWORD_PERSIST_DIR.exists() else "missing"
+
+    status_code = 200 if is_ready else 503
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "status": "ready" if is_ready else "not_ready",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "checks": checks,
         },
     )
 

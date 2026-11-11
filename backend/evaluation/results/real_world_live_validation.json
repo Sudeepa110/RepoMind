@@ -1,0 +1,232 @@
+{
+  "timestamp": "2026-11-11T15:03:14Z",
+  "repositories": [
+    {
+      "url": "https://github.com/pallets/itsdangerous",
+      "owner": "pallets",
+      "name": "itsdangerous",
+      "accessible_check": true,
+      "commit_hash": "672971d66a2ef9f85151e53283113f33d642dabd",
+      "default_branch": "main",
+      "primary_language": "Python",
+      "languages": [
+        {
+          "name": "Python",
+          "file_count": 14,
+          "line_count": 1359,
+          "byte_count": 61275,
+          "percentage": 40.9
+        },
+        {
+          "name": "Plain Text",
+          "file_count": 4,
+          "line_count": 1160,
+          "byte_count": 164589,
+          "percentage": 35.0
+        },
+        {
+          "name": "ReStructuredText",
+          "file_count": 11,
+          "line_count": 521,
+          "byte_count": 22339,
+          "percentage": 15.7
+        },
+        {
+          "name": "TOML",
+          "file_count": 1,
+          "line_count": 180,
+          "byte_count": 4649,
+          "percentage": 5.4
+        },
+        {
+          "name": "Markdown",
+          "file_count": 1,
+          "line_count": 33,
+          "byte_count": 1579,
+          "percentage": 1.0
+        },
+        {
+          "name": "YAML",
+          "file_count": 2,
+          "line_count": 28,
+          "byte_count": 899,
+          "percentage": 0.8
+        },
+        {
+          "name": "Text",
+          "file_count": 1,
+          "line_count": 23,
+          "byte_count": 1503,
+          "percentage": 0.7
+        },
+        {
+          "name": "Makefile",
+          "file_count": 1,
+          "line_count": 15,
+          "byte_count": 600,
+          "percentage": 0.5
+        }
+      ],
+      "included_files_count": 35,
+      "excluded_files_count": 5,
+      "chunks_count": 201,
+      "vector_indexed": 201,
+      "keyword_indexed": 201,
+      "graph_nodes": 312,
+      "graph_edges": 629,
+      "indexing_duration_ms": 11202.75,
+      "answerable_results": [
+        {
+          "query_id": "LIVE_PY_01",
+          "query": "Where is the Serializer class defined?",
+          "sufficiency": "SUFFICIENT",
+          "abstained": false,
+          "expected_file_matched": true,
+          "top_file": "src/itsdangerous/serializer.py",
+          "top_symbol": "Serializer",
+          "citation_validity": 1.0,
+          "claim_support_rate": 1.0
+        },
+        {
+          "query_id": "LIVE_PY_02",
+          "query": "How does TimedSerializer handle timestamp signing and expiration validation?",
+          "sufficiency": "SUFFICIENT",
+          "abstained": false,
+          "expected_file_matched": true,
+          "top_file": "docs/timed.rst",
+          "top_symbol": "timed.rst",
+          "citation_validity": 1.0,
+          "claim_support_rate": 1.0
+        },
+        {
+          "query_id": "LIVE_PY_03",
+          "query": "Where is URLSafeSerializer implemented?",
+          "sufficiency": "SUFFICIENT",
+          "abstained": false,
+          "expected_file_matched": true,
+          "top_file": "src/itsdangerous/url_safe.py",
+          "top_symbol": "URLSafeSerializer",
+          "citation_validity": 1.0,
+          "claim_support_rate": 1.0
+        }
+      ],
+      "out_of_scope_results": [
+        {
+          "query_id": "LIVE_PY_OOS_01",
+          "category": "nonexistent_function",
+          "query": "Where is the rotate_jwt_rsa_keys_async function declared?",
+          "sufficiency": "NO_EVIDENCE",
+          "abstained": true
+        },
+        {
+          "query_id": "LIVE_PY_OOS_02",
+          "category": "nonexistent_endpoint",
+          "query": "How is the POST /api/v2/payments/webhook endpoint implemented?",
+          "sufficiency": "NO_EVIDENCE",
+          "abstained": true
+        },
+        {
+          "query_id": "LIVE_PY_OOS_03",
+          "category": "unsupported_technology",
+          "query": "How is Apache Cassandra cluster replication configured here?",
+          "sufficiency": "NO_EVIDENCE",
+          "abstained": true
+        }
+      ]
+    },
+    {
+      "url": "https://github.com/sindresorhus/p-limit",
+      "owner": "sindresorhus",
+      "name": "p-limit",
+      "accessible_check": true,
+      "commit_hash": "a8a6fbec4e0e866d6d779b10889bb4f5567e70eb",
+      "default_branch": "main",
+      "primary_language": "JavaScript",
+      "languages": [
+        {
+          "name": "JavaScript",
+          "file_count": 4,
+          "line_count": 893,
+          "byte_count": 29896,
+          "percentage": 66.0
+        },
+        {
+          "name": "Markdown",
+          "file_count": 2,
+          "line_count": 255,
+          "byte_count": 10110,
+          "percentage": 18.8
+        },
+        {
+          "name": "TypeScript",
+          "file_count": 2,
+          "line_count": 128,
+          "byte_count": 5889,
+          "percentage": 9.5
+        },
+        {
+          "name": "JSON",
+          "file_count": 1,
+          "line_count": 58,
+          "byte_count": 1055,
+          "percentage": 4.3
+        },
+        {
+          "name": "Plain Text",
+          "file_count": 5,
+          "line_count": 19,
+          "byte_count": 1353,
+          "percentage": 1.4
+        }
+      ],
+      "included_files_count": 14,
+      "excluded_files_count": 0,
+      "chunks_count": 81,
+      "vector_indexed": 81,
+      "keyword_indexed": 81,
+      "graph_nodes": 180,
+      "graph_edges": 260,
+      "indexing_duration_ms": 3577.54,
+      "answerable_results": [
+        {
+          "query_id": "LIVE_TS_01",
+          "query": "Where is the main pLimit concurrency limiter function defined?",
+          "sufficiency": "SUFFICIENT",
+          "abstained": false,
+          "expected_file_matched": true,
+          "top_file": "index.js",
+          "top_symbol": "pLimit",
+          "citation_validity": 1.0,
+          "claim_support_rate": 1.0
+        },
+        {
+          "query_id": "LIVE_TS_02",
+          "query": "How are queued tasks dequeued and executed inside the concurrency limit?",
+          "sufficiency": "SUFFICIENT",
+          "abstained": false,
+          "expected_file_matched": true,
+          "top_file": "index.js",
+          "top_symbol": "resumeNext",
+          "citation_validity": 1.0,
+          "claim_support_rate": 1.0
+        }
+      ],
+      "out_of_scope_results": [
+        {
+          "query_id": "LIVE_TS_OOS_01",
+          "category": "nonexistent_endpoint",
+          "query": "How does DELETE /api/v1/queues/purge handle HTTP requests?",
+          "sufficiency": "NO_EVIDENCE",
+          "abstained": true
+        },
+        {
+          "query_id": "LIVE_TS_OOS_02",
+          "category": "nonexistent_class",
+          "query": "Find the definition of KafkaDeadLetterConsumer class.",
+          "sufficiency": "NO_EVIDENCE",
+          "abstained": true
+        }
+      ]
+    }
+  ]
+}

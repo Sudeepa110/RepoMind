@@ -41,7 +41,8 @@ import type {
   SystemProfile,
 } from '../types';
 
-const API_BASE = '/api/v1';
+const rawBase = import.meta.env.VITE_API_BASE_URL as string | undefined;
+const API_BASE = (rawBase ? rawBase.replace(/\/$/, '') : '') + '/api/v1';
 
 const apiClient = axios.create({
   baseURL: API_BASE,
@@ -82,6 +83,16 @@ export const api = {
 
   async getRepositoryDetails(repositoryId: string): Promise<RepositoryDetail> {
     const res = await apiClient.get<RepositoryDetail>(`/repositories/${repositoryId}`);
+    return res.data;
+  },
+
+  async deleteRepository(repositoryId: string): Promise<{ status: string; message: string }> {
+    const res = await apiClient.delete(`/repositories/${repositoryId}`);
+    return res.data;
+  },
+
+  async getReadiness(): Promise<{ status: string; checks: Record<string, string> }> {
+    const res = await apiClient.get('/ready');
     return res.data;
   },
 
@@ -437,7 +448,9 @@ export const api = {
 
   async runEvaluationSuite(): Promise<{ status: string; message: string; results?: any }> {
     const res = await apiClient.post<{ status: string; message: string; results?: any }>(
-      '/evaluation/run'
+      '/evaluation/run',
+      null,
+      { timeout: 120000 }
     );
     return res.data;
   },

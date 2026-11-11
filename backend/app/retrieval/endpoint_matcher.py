@@ -63,31 +63,61 @@ STANDALONE_API_PATH_PATTERN = re.compile(
 
 # Regex patterns for code route declarations
 FLASK_ROUTE_PATTERN = re.compile(
-    r"@(?:app|bp|router|blueprint)\.(route|get|post|put|delete|patch)\(\s*[\"']([^\"']+)[\"'](?:[^)]*methods\s*=\s*\[([^\]]+)\])?",
+    r"@([a-zA-Z_][a-zA-Z0-9_]*)\.(route|get|post|put|delete|patch)\(\s*[\"']([^\"']+)[\"'](?:[^)]*methods\s*=\s*\[([^\]]+)\])?",
     re.IGNORECASE,
 )
 EXPRESS_ROUTE_PATTERN = re.compile(
-    r"(?:app|router)\.(get|post|put|delete|patch|all)\(\s*[\"']([^\"']+)[\"']",
+    r"\b([a-zA-Z_$][a-zA-Z0-9_$]*)\.(get|post|put|delete|patch|all)\(\s*[\"'](/[^\"']*)[\"']",
     re.IGNORECASE,
 )
 EXPRESS_USE_MOUNT_PATTERN = re.compile(
-    r"(?:app|router)\.use\(\s*[\"']([^\"']+)[\"']\s*,\s*([a-zA-Z0-9_]+)",
+    r"\b([a-zA-Z_$][a-zA-Z0-9_$]*)\.use\(\s*[\"'](/[^\"']*)[\"']\s*,\s*([a-zA-Z_$][a-zA-Z0-9_$]*)",
     re.IGNORECASE,
 )
 SPRING_ROUTE_PATTERN = re.compile(
-    r"@(GetMapping|PostMapping|DeleteMapping|PutMapping|PatchMapping|RequestMapping)\(\s*(?:value\s*=\s*)?[\"']([^\"']+)[\"'](?:[^)]*method\s*=\s*RequestMethod\.([A-Z]+))?",
+    r"@(GetMapping|PostMapping|DeleteMapping|PutMapping|PatchMapping|RequestMapping)\(\s*(?:(?:value|path)\s*=\s*)?[\"']([^\"']*)[\"'](?:[^)]*method\s*=\s*RequestMethod\.([A-Z]+))?",
+    re.IGNORECASE,
+)
+SPRING_EMPTY_ROUTE_PATTERN = re.compile(
+    r"@(GetMapping|PostMapping|DeleteMapping|PutMapping|PatchMapping)(?:\(\s*\))?(?!\s*\([^)]*[\"'])",
     re.IGNORECASE,
 )
 SPRING_CLASS_PREFIX_PATTERN = re.compile(
-    r"@RequestMapping\(\s*(?:value\s*=\s*)?[\"']([^\"']+)[\"'].*?\)\s*(?:@\w+\s*)*(?:public\s+|protected\s+)?(?:class|interface)\b",
+    r"@RequestMapping\(\s*(?:(?:value|path)\s*=\s*)?[\"']([^\"']+)[\"'][^)]*\)\s*(?:@\w+(?:\([^)]*\))?\s*)*(?:public\s+|protected\s+|private\s+)?(?:class|interface)\b",
     re.DOTALL | re.IGNORECASE,
 )
 FLASK_BP_PREFIX_PATTERN = re.compile(
     r"Blueprint\(\s*[\"'][^\"']+[\"'].*?url_prefix\s*=\s*[\"']([^\"']+)[\"']",
     re.DOTALL | re.IGNORECASE,
 )
+FASTAPI_ROUTER_PREFIX_PATTERN = re.compile(
+    r"APIRouter\([^)]*prefix\s*=\s*[\"']([^\"']+)[\"']",
+    re.DOTALL | re.IGNORECASE,
+)
+FLASK_REG_BP_PATTERN = re.compile(
+    r"register_blueprint\(\s*([a-zA-Z_][a-zA-Z0-9_]*)[^)]*url_prefix\s*=\s*[\"']([^\"']+)[\"']",
+    re.DOTALL | re.IGNORECASE,
+)
+FASTAPI_INC_ROUTER_PATTERN = re.compile(
+    r"include_router\(\s*([a-zA-Z_][a-zA-Z0-9_]*)[^)]*prefix\s*=\s*[\"']([^\"']+)[\"']",
+    re.DOTALL | re.IGNORECASE,
+)
 COMMENT_ROUTE_PATTERN = re.compile(
     r"(?:@route|Route:|Endpoint:)\s+(GET|POST|PUT|DELETE|PATCH)\s+([/a-zA-Z0-9_\-\.:<>{}\*]+)",
+    re.IGNORECASE,
+)
+
+# Import discovery patterns for cross-file router mounting
+JS_IMPORT_PATTERN = re.compile(
+    r"import\s+(?:\{\s*([a-zA-Z_$][a-zA-Z0-9_$]*)(?:\s+as\s+[a-zA-Z_$][a-zA-Z0-9_$]*)?\s*\}|([a-zA-Z_$][a-zA-Z0-9_$]*))\s+from\s+[\"']([^\"']+)[\"']",
+    re.IGNORECASE,
+)
+JS_REQUIRE_PATTERN = re.compile(
+    r"(?:const|let|var)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=\s*require\(\s*[\"']([^\"']+)[\"']\s*\)",
+    re.IGNORECASE,
+)
+PY_FROM_IMPORT_PATTERN = re.compile(
+    r"from\s+([a-zA-Z0-9_.]+)\s+import\s+([a-zA-Z0-9_, \t*]+(?:\s+as\s+[a-zA-Z0-9_]+)?)",
     re.IGNORECASE,
 )
 
@@ -158,15 +188,15 @@ class DeclaredRoute(BaseModel):
 def extract_declared_routes_from_code(source_code: str, file_path: Optional[str] = None) -> List[DeclaredRoute]:
     """
     Extracts route declarations from Python (Flask/FastAPI), TypeScript (Express),
-    and Java (Spring Boot) source code text.
+    and Java (Spring Boot) source code text, composing intra-file class or blueprint prefixes.
     """
     routes: List[DeclaredRoute] = []
 
-    # 1. Python Flask/FastAPI
+    # 1. Python Flask / FastAPI
     for m in FLASK_ROUTE_PATTERN.finditer(source_code):
-        route_func = m.group(1).upper()
-        route_path = m.group(2)
-        methods_str = m.group(3)
+        route_func = m.group(2).upper()
+        route_path = m.group(3)
+        methods_str = m.group(4)
         if route_func in ("GET", "POST", "PUT", "DELETE", "PATCH"):
             methods = [route_func]
         elif methods_str:
@@ -182,10 +212,10 @@ def extract_declared_routes_from_code(source_code: str, file_path: Optional[str]
             )
         )
 
-    # 2. TypeScript Express
+    # 2. TypeScript / JavaScript Express
     for m in EXPRESS_ROUTE_PATTERN.finditer(source_code):
-        method = m.group(1).upper()
-        route_path = m.group(2)
+        method = m.group(2).upper()
+        route_path = m.group(3)
         methods = [method] if method != "ALL" else ["GET", "POST", "PUT", "DELETE", "PATCH"]
         routes.append(
             DeclaredRoute(
@@ -196,8 +226,17 @@ def extract_declared_routes_from_code(source_code: str, file_path: Optional[str]
             )
         )
 
-    # 3. Java Spring Boot
+    # 3. Java Spring Boot: identify class-level prefixes first so they compose cleanly
+    spring_class_prefixes: List[str] = []
+    class_prefix_positions: set[int] = set()
+    for m_cls in SPRING_CLASS_PREFIX_PATTERN.finditer(source_code):
+        spring_class_prefixes.append(m_cls.group(1).rstrip("/"))
+        class_prefix_positions.add(m_cls.start())
+
     for m in SPRING_ROUTE_PATTERN.finditer(source_code):
+        if m.start() in class_prefix_positions:
+            # Class-level @RequestMapping acts as a prefix for handler methods, not a method endpoint itself
+            continue
         annotation = m.group(1)
         route_path = m.group(2)
         explicit_method = m.group(3)
@@ -224,19 +263,38 @@ def extract_declared_routes_from_code(source_code: str, file_path: Optional[str]
             )
         )
 
-    # Detect prefix declarations (Spring @RequestMapping on class, Flask url_prefix, Express app.use)
-    detected_prefix: Optional[str] = None
-    m_spring_pfx = SPRING_CLASS_PREFIX_PATTERN.search(source_code)
-    if m_spring_pfx:
-        detected_prefix = m_spring_pfx.group(1).rstrip("/")
-    else:
-        m_flask_pfx = FLASK_BP_PREFIX_PATTERN.search(source_code)
-        if m_flask_pfx:
-            detected_prefix = m_flask_pfx.group(1).rstrip("/")
+    for m in SPRING_EMPTY_ROUTE_PATTERN.finditer(source_code):
+        annotation = m.group(1)
+        if "Get" in annotation:
+            methods = ["GET"]
+        elif "Post" in annotation:
+            methods = ["POST"]
+        elif "Delete" in annotation:
+            methods = ["DELETE"]
+        elif "Put" in annotation:
+            methods = ["PUT"]
+        elif "Patch" in annotation:
+            methods = ["PATCH"]
         else:
-            m_exp_pfx = EXPRESS_USE_MOUNT_PATTERN.search(source_code)
-            if m_exp_pfx:
-                detected_prefix = m_exp_pfx.group(1).rstrip("/")
+            methods = ["GET"]
+        routes.append(
+            DeclaredRoute(
+                methods=methods,
+                path="",
+                normalized_segments=[],
+                file_path=file_path,
+            )
+        )
+
+    # Detect intra-file prefix declarations
+    detected_prefixes: List[str] = list(spring_class_prefixes)
+    for m_flask_pfx in FLASK_BP_PREFIX_PATTERN.finditer(source_code):
+        detected_prefixes.append(m_flask_pfx.group(1).rstrip("/"))
+    for m_fa_pfx in FASTAPI_ROUTER_PREFIX_PATTERN.finditer(source_code):
+        detected_prefixes.append(m_fa_pfx.group(1).rstrip("/"))
+    if not detected_prefixes:
+        for m_exp_pfx in EXPRESS_USE_MOUNT_PATTERN.finditer(source_code):
+            detected_prefixes.append(m_exp_pfx.group(2).rstrip("/"))
 
     # 4. Docstrings or comments declaring routes:
     for m in COMMENT_ROUTE_PATTERN.finditer(source_code):
@@ -251,23 +309,192 @@ def extract_declared_routes_from_code(source_code: str, file_path: Optional[str]
             )
         )
 
-    # If prefix was detected, also generate composed full routes for each relative route
-    if detected_prefix:
+    # If prefix(es) were detected in this file, generate composed full routes
+    if detected_prefixes:
         composed_routes: List[DeclaredRoute] = []
-        for r in routes:
-            if not r.path.startswith(detected_prefix):
-                full_path = f"{detected_prefix}/{r.path.lstrip('/')}"
-                composed_routes.append(
+        for pfx in detected_prefixes:
+            for r in routes:
+                if not pfx:
+                    continue
+                if not r.path or not r.path.startswith(pfx):
+                    joined = f"{pfx}/{r.path.lstrip('/')}" if r.path else pfx
+                    composed_routes.append(
+                        DeclaredRoute(
+                            methods=r.methods,
+                            path=joined,
+                            normalized_segments=normalize_path_segments(joined),
+                            file_path=file_path,
+                        )
+                    )
+        routes.extend(composed_routes)
+
+    # Filter out bare empty paths unless composed with a prefix
+    return [r for r in routes if r.path or r.normalized_segments]
+
+
+def _chunk_field(chunk: Any, field: str, default: Any = None) -> Any:
+    if isinstance(chunk, dict):
+        return chunk.get(field, default)
+    return getattr(chunk, field, default)
+
+
+def _resolve_module_to_file(
+    source_file: str,
+    import_spec: str,
+    all_files: List[str],
+) -> Optional[str]:
+    """Resolves a relative/dotted import specifier to an indexed file path."""
+    if not import_spec or not all_files:
+        return None
+
+    # Normalize JS/TS relative path (e.g. './routes/users.js' -> 'routes/users')
+    spec_clean = import_spec.strip()
+    if spec_clean.startswith("."):
+        # Handle JS/TS './foo', '../foo' or Python '.foo', '..pkg.mod'
+        if "/" in spec_clean:
+            base_dir = "/".join(source_file.replace("\\", "/").split("/")[:-1])
+            parts = (base_dir.split("/") if base_dir else []) + spec_clean.split("/")
+            resolved_parts: List[str] = []
+            for p in parts:
+                if p in ("", "."):
+                    continue
+                elif p == "..":
+                    if resolved_parts:
+                        resolved_parts.pop()
+                else:
+                    resolved_parts.append(p)
+            candidate_stem = "/".join(resolved_parts)
+            # Strip .js/.ts extension if TypeScript uses ESM .js imports
+            candidate_stem = re.sub(r"\.(?:js|ts|jsx|tsx|py)$", "", candidate_stem)
+        else:
+            # Python relative import like '.users'
+            dots = len(spec_clean) - len(spec_clean.lstrip("."))
+            mod_part = spec_clean.lstrip(".").replace(".", "/")
+            dir_parts = source_file.replace("\\", "/").split("/")[:-dots]
+            candidate_stem = "/".join(dir_parts + ([mod_part] if mod_part else []))
+    else:
+        candidate_stem = spec_clean.replace(".", "/")
+
+    candidate_stem = candidate_stem.strip("/").lower()
+    if not candidate_stem:
+        return None
+
+    for fp in all_files:
+        fp_norm = fp.replace("\\", "/").lower()
+        fp_no_ext = re.sub(r"\.(?:py|ts|tsx|js|jsx|java)$", "", fp_norm)
+        if fp_no_ext == candidate_stem or fp_no_ext.endswith(f"/{candidate_stem}"):
+            return fp
+        if fp_no_ext.endswith(f"/{candidate_stem}/index") or fp_no_ext.endswith(f"/{candidate_stem}/__init__"):
+            return fp
+    return None
+
+
+def extract_declared_routes_from_repository(chunks: List[Any]) -> Tuple[List[DeclaredRoute], str]:
+    """
+    Reconstructs file-level sources across all chunks (handling class/method chunk splits)
+    and resolves cross-file router mounts (Express app.use, Flask register_blueprint,
+    FastAPI include_router).
+    """
+    grouped: Dict[str, List[Tuple[int, str]]] = {}
+    for idx, c in enumerate(chunks):
+        code = _chunk_field(c, "source_code", "") or ""
+        fp = _chunk_field(c, "file_path", None) or f"_chunk_{idx}"
+        start_line = _chunk_field(c, "start_line", idx)
+        if start_line is None:
+            start_line = idx
+        grouped.setdefault(fp, []).append((int(start_line), code))
+
+    file_sources: Dict[str, str] = {}
+    for fp, items in grouped.items():
+        items.sort(key=lambda x: x[0])
+        seen_blocks = set()
+        ordered_blocks = []
+        for _, code in items:
+            if code and code not in seen_blocks:
+                seen_blocks.add(code)
+                ordered_blocks.append(code)
+        file_sources[fp] = "\n".join(ordered_blocks)
+
+    all_files = list(file_sources.keys())
+    combined_source = "\n".join(file_sources.values())
+
+    # 1. Extract intra-file routes per reconstructed file
+    file_routes: Dict[str, List[DeclaredRoute]] = {}
+    all_routes: List[DeclaredRoute] = []
+    for fp, code in file_sources.items():
+        f_routes = extract_declared_routes_from_code(code, fp)
+        file_routes[fp] = f_routes
+        all_routes.extend(f_routes)
+
+    # 2. Extract cross-file router/blueprint mounts
+    # Map target_file -> list of mount prefixes
+    cross_mounts: List[Tuple[str, str]] = []  # (target_file, mount_prefix)
+    for src_fp, code in file_sources.items():
+        # Collect variable -> module path imports in src_fp
+        var_to_module: Dict[str, str] = {}
+        for m in JS_IMPORT_PATTERN.finditer(code):
+            var_name = m.group(1) or m.group(2)
+            mod_spec = m.group(3)
+            if var_name and mod_spec:
+                var_to_module[var_name] = mod_spec
+        for m in JS_REQUIRE_PATTERN.finditer(code):
+            var_to_module[m.group(1)] = m.group(2)
+        for m in PY_FROM_IMPORT_PATTERN.finditer(code):
+            mod_spec = m.group(1)
+            for item in m.group(2).split(","):
+                item = item.strip()
+                if " as " in item:
+                    alias = item.split(" as ")[-1].strip()
+                    var_to_module[alias] = mod_spec
+                elif item and item != "*":
+                    var_to_module[item] = mod_spec
+
+        # Express: host.use('/prefix', childRouter)
+        for m in EXPRESS_USE_MOUNT_PATTERN.finditer(code):
+            prefix = m.group(2).rstrip("/")
+            child_var = m.group(3)
+            if prefix and child_var in var_to_module:
+                target_fp = _resolve_module_to_file(src_fp, var_to_module[child_var], all_files)
+                if target_fp and target_fp != src_fp:
+                    cross_mounts.append((target_fp, prefix))
+
+        # Flask: app.register_blueprint(bp_var, url_prefix='/prefix')
+        for m in FLASK_REG_BP_PATTERN.finditer(code):
+            child_var = m.group(1)
+            prefix = m.group(2).rstrip("/")
+            if prefix and child_var in var_to_module:
+                target_fp = _resolve_module_to_file(src_fp, var_to_module[child_var], all_files)
+                if target_fp and target_fp != src_fp:
+                    cross_mounts.append((target_fp, prefix))
+
+        # FastAPI: app.include_router(router_var, prefix='/prefix')
+        for m in FASTAPI_INC_ROUTER_PATTERN.finditer(code):
+            child_var = m.group(1)
+            prefix = m.group(2).rstrip("/")
+            if prefix and child_var in var_to_module:
+                target_fp = _resolve_module_to_file(src_fp, var_to_module[child_var], all_files)
+                if target_fp and target_fp != src_fp:
+                    cross_mounts.append((target_fp, prefix))
+
+    # Apply cross-file mount prefixes (propagate across chained sub-routers up to 2 passes)
+    composed_all: List[DeclaredRoute] = list(all_routes)
+    applied_pairs = set()
+    for target_fp, prefix in cross_mounts:
+        for r in file_routes.get(target_fp, []):
+            full_path = f"{prefix}/{r.path.lstrip('/')}" if r.path and r.path != "/" else prefix or "/"
+            key = (tuple(r.methods), full_path, target_fp)
+            if key not in applied_pairs:
+                applied_pairs.add(key)
+                composed_all.append(
                     DeclaredRoute(
                         methods=r.methods,
                         path=full_path,
                         normalized_segments=normalize_path_segments(full_path),
-                        file_path=file_path,
+                        file_path=target_fp,
                     )
                 )
-        routes.extend(composed_routes)
 
-    return routes
+    return composed_all, combined_source
 
 
 def match_endpoint_against_chunks(
@@ -276,7 +503,7 @@ def match_endpoint_against_chunks(
 ) -> RouteMatchResult:
     """
     Performs structurally justified matching between a query EndpointTarget
-    and retrieved source code chunks.
+    and source code chunks (supports both full-repository chunk scans and top-k subsets).
     Distinguishes EXACT_MATCH, METHOD_MISMATCH, PREFIX_ONLY, and NOT_FOUND.
     """
     target_segments = target.normalized_segments
@@ -290,14 +517,8 @@ def match_endpoint_against_chunks(
             explanation="Target endpoint path has no valid segments.",
         )
 
-    # Extract all declared routes across all retrieved chunks
-    all_declared_routes: List[DeclaredRoute] = []
-    combined_source = ""
-    for c in chunks:
-        code = getattr(c, "source_code", "") or ""
-        fp = getattr(c, "file_path", None)
-        combined_source += "\n" + code
-        all_declared_routes.extend(extract_declared_routes_from_code(code, fp))
+    # Extract all declared routes with per-file reconstruction and cross-file router mounting
+    all_declared_routes, combined_source = extract_declared_routes_from_repository(chunks)
 
     # Also check if target path is present as a literal string in code (e.g. config or url_for)
     target_path_lower = target.path.lower()

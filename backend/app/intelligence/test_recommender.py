@@ -73,7 +73,7 @@ class TestRecommender:
         if not target_node and target_nodes:
             target_node = target_nodes[0]
 
-        target_file = target_node.file_path if target_node else (request.file_path or "unknown")
+        target_file = (target_node.file_path if target_node and target_node.file_path else request.file_path) or "unknown"
         target_name = target_node.name if target_node else request.target_symbol
 
         recommendations: List[TestRecommendation] = []
@@ -129,7 +129,7 @@ class TestRecommender:
             for edge in caller_edges:
                 caller_node = self.store.get_node(edge.source_id, repository_id)
                 caller_name = caller_node.name if caller_node else edge.source_id.split(":")[-1]
-                caller_file = caller_node.file_path if caller_node else target_file
+                caller_file = (caller_node.file_path if caller_node and caller_node.file_path else target_file) or "unknown"
 
                 recommendations.append(TestRecommendation(
                     recommendation_id=f"REC-{rec_counter:03d}",
@@ -169,7 +169,7 @@ class TestRecommender:
             for edge in out_edges:
                 callee_node = self.store.get_node(edge.target_id, repository_id)
                 callee_name = callee_node.name if callee_node else edge.target_id.split(":")[-1]
-                callee_file = callee_node.file_path if callee_node else target_file
+                callee_file = (callee_node.file_path if callee_node and callee_node.file_path else target_file) or "unknown"
 
                 recommendations.append(TestRecommendation(
                     recommendation_id=f"REC-{rec_counter:03d}",

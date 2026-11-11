@@ -190,3 +190,114 @@ def login_endpoint(payload: dict) -> dict:
     res = match_endpoint_against_chunks(target, chunks)
     assert res.status == RouteMatchStatus.EXACT_MATCH
     assert res.is_supported is True
+
+
+def test_cross_file_express_mounted_router():
+    """Phase 10 Step 6B: Verify Express app.use('/api/users', userRouter) across multiple files."""
+    class ChunkWithLine(MockChunk):
+        def __init__(self, source_code: str, file_path: str, start_line: int = 1):
+            super().__init__(source_code, file_path)
+            self.start_line = start_line
+
+    app_code = """
+import express from 'express';
+import userRouter from './routes/users';
+
+const app = express();
+app.use('/api/users', userRouter);
+"""
+    users_code = """
+import { Router } from 'express';
+const router = Router();
+router.get('/:id/profile', (req, res) => res.json({}));
+router.post('/', (req, res) => res.status(201).json({}));
+export default router;
+"""
+    chunks = [
+        ChunkWithLine(app_code, "src/app.ts", 1),
+        ChunkWithLine(users_code, "src/routes/users.ts", 1),
+    ]
+
+    # Exact composed parameterized route with concrete parameter
+    t_get = extract_endpoint_from_query("How is GET /api/users/42/profile implemented?")
+    r_get = match_endpoint_against_chunks(t_get, chunks)
+    assert r_get.status == RouteMatchStatus.EXACT_MATCH
+    assert r_get.is_supported is True
+    assert r_get.matched_file == "src/routes/users.ts"
+
+    # Root sub-route mounted at /api/users
+    t_post = extract_endpoint_from_query("How is POST /api/users implemented?")
+    r_post = match_endpoint_against_chunks(t_post, chunks)
+    assert r_post.status == RouteMatchStatus.EXACT_MATCH
+    assert r_post.is_supported is True
+
+    # Method mismatch on mounted sub-route
+    t_del = extract_endpoint_from_query("How is DELETE /api/users/42/profile implemented?")
+    r_del = match_endpoint_against_chunks(t_del, chunks)
+    assert r_del.status == RouteMatchStatus.METHOD_MISMATCH
+    assert r_del.is_supported is False
+
+    # Similar prefix with nonexistent leaf path
+    t_fake = extract_endpoint_from_query("How is GET /api/users/42/crypto_wallet implemented?")
+    r_fake = match_endpoint_against_chunks(t_fake, chunks)
+    assert r_fake.status in (RouteMatchStatus.PREFIX_ONLY, RouteMatchStatus.NOT_FOUND)
+    assert r_fake.is_supported is False
+
+
+def test_cross_file_flask_blueprint_and_split_spring_chunks():
+    """Phase 10 Step 6B: Verify cross-file Flask blueprint mount + split-chunk Spring class prefix."""
+    class ChunkWithLine(MockChunk):
+        def __init__(self, source_code: str, file_path: str, start_line: int = 1):
+            super().__init__(source_code, file_path)
+            self.start_line = start_line
+
+    flask_init = """
+from flask import Flask
+from .auth.views import auth_bp
+
+app = Flask(__name__)
+app.register_blueprint(auth_bp, url_prefix='/api/v1/auth')
+"""
+    flask_auth = """
+from flask import Blueprint
+auth_bp = Blueprint('auth', __name__)
+
+@auth_bp.post('/tokens')
+def issue_token():
+    return {}
+"""
+    spring_header = """
+@Controller
+@RequestMapping("/owners/{ownerId}")
+class PetController {
+"""
+    spring_method = """
+    @GetMapping("/pets/{petId}/edit")
+    public String initUpdateForm() {
+        return "form";
+    }
+"""
+    chunks = [
+        ChunkWithLine(flask_init, "app/__init__.py", 1),
+        ChunkWithLine(flask_auth, "app/auth/views.py", 1),
+        ChunkWithLine(spring_header, "PetController.java", 40),
+        ChunkWithLine(spring_method, "PetController.java", 110),
+    ]
+
+    # Cross-file Flask blueprint route
+    t_flask = extract_endpoint_from_query("Where is POST /api/v1/auth/tokens handled?")
+    r_flask = match_endpoint_against_chunks(t_flask, chunks)
+    assert r_flask.status == RouteMatchStatus.EXACT_MATCH
+    assert r_flask.is_supported is True
+
+    # Split-chunk Spring composed route queried with concrete IDs
+    t_spring = extract_endpoint_from_query("What does GET /owners/10/pets/5/edit return?")
+    r_spring = match_endpoint_against_chunks(t_spring, chunks)
+    assert r_spring.status == RouteMatchStatus.EXACT_MATCH
+    assert r_spring.is_supported is True
+
+    # Wrong HTTP method on split-chunk Spring route
+    t_spring_wrong = extract_endpoint_from_query("What does DELETE /owners/10/pets/5/edit do?")
+    r_spring_wrong = match_endpoint_against_chunks(t_spring_wrong, chunks)
+    assert r_spring_wrong.status == RouteMatchStatus.METHOD_MISMATCH
+    assert r_spring_wrong.is_supported is False
