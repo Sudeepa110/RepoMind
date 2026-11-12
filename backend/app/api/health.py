@@ -16,7 +16,7 @@ def check_gpu_status():
         import torch
         if torch.cuda.is_available():
             return True, torch.cuda.get_device_name(0)
-    except ImportError:
+    except Exception:
         pass
 
     # Fallback to nvidia-smi check

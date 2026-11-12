@@ -5,6 +5,7 @@ import logging
 from pathlib import Path
 from typing import Optional, Tuple, List
 from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from backend.app.config import settings
 from backend.app.database.session import AsyncSessionLocal
@@ -22,6 +23,7 @@ from backend.app.graph.builder import graph_builder
 from backend.app.graph.networkx_store import networkx_graph_store
 
 logger = logging.getLogger("repomind.indexing")
+_repo_create_lock = asyncio.Lock()
 
 
 async def get_or_create_repository(
@@ -31,7 +33,8 @@ async def get_or_create_repository(
 ) -> Tuple[RepositoryModel, IndexingJobModel, bool]:
     """
     Retrieves an existing repository or initializes a new repository & job record.
-    Returns (repo, job, is_already_ready).
+    Concurrency-safe for simultaneous React StrictMode or multi-tab submissions.
+    Returns (repo, job, should_skip_background_task).
     """
     is_valid, owner, name, err = validate_github_url(repo_url)
     if not is_valid or not owner or not name:
@@ -39,71 +42,94 @@ async def get_or_create_repository(
 
     clean_url = f"https://github.com/{owner}/{name}"
 
-    # Check for existing repository record
-    stmt = select(RepositoryModel).where(RepositoryModel.url == clean_url)
-    result = await db.execute(stmt)
-    existing_repo = result.scalar_one_or_none()
+    async with _repo_create_lock:
+        # Check for existing repository record
+        stmt = select(RepositoryModel).where(RepositoryModel.url == clean_url)
+        result = await db.execute(stmt)
+        existing_repo = result.scalar_one_or_none()
 
-    if existing_repo:
-        if existing_repo.status == "ready" and not force_reindex:
-            # Check latest completed job
+        if existing_repo:
+            if not force_reindex and existing_repo.status in ("ready", "pending", "processing"):
+                # Reuse existing ready or active job instead of creating duplicate concurrent jobs
+                job_stmt = (
+                    select(IndexingJobModel)
+                    .where(IndexingJobModel.repository_id == existing_repo.id)
+                    .order_by(IndexingJobModel.started_at.desc())
+                )
+                job_res = await db.execute(job_stmt)
+                latest_job = job_res.scalars().first()
+                if not latest_job:
+                    latest_job = IndexingJobModel(
+                        repository_id=existing_repo.id,
+                        status="completed" if existing_repo.status == "ready" else "queued",
+                        current_stage="Ready" if existing_repo.status == "ready" else "Queued for analysis and vector indexing",
+                        progress_pct=100 if existing_repo.status == "ready" else 0,
+                    )
+                    db.add(latest_job)
+                    await db.commit()
+                    await db.refresh(latest_job)
+                return existing_repo, latest_job, True
+
+            # Existing repo needs re-indexing (either failed or force_reindex=True)
+            existing_repo.status = "pending"
+            existing_repo.error_message = None
+            new_job = IndexingJobModel(
+                repository_id=existing_repo.id,
+                status="queued",
+                current_stage="Queued for analysis and vector indexing",
+                progress_pct=0,
+                started_at=datetime.now(timezone.utc),
+            )
+            db.add(new_job)
+            await db.commit()
+            await db.refresh(existing_repo)
+            await db.refresh(new_job)
+            return existing_repo, new_job, False
+
+        # Create new repository record safely
+        try:
+            new_repo = RepositoryModel(
+                owner=owner,
+                name=name,
+                url=clean_url,
+                status="pending",
+            )
+            db.add(new_repo)
+            await db.flush()
+
+            new_job = IndexingJobModel(
+                repository_id=new_repo.id,
+                status="queued",
+                current_stage="Queued for analysis and vector indexing",
+                progress_pct=0,
+                started_at=datetime.now(timezone.utc),
+            )
+            db.add(new_job)
+            await db.commit()
+            await db.refresh(new_repo)
+            await db.refresh(new_job)
+            return new_repo, new_job, False
+        except IntegrityError:
+            await db.rollback()
+            stmt = select(RepositoryModel).where(RepositoryModel.url == clean_url)
+            existing_repo = (await db.execute(stmt)).scalar_one()
             job_stmt = (
                 select(IndexingJobModel)
                 .where(IndexingJobModel.repository_id == existing_repo.id)
                 .order_by(IndexingJobModel.started_at.desc())
             )
-            job_res = await db.execute(job_stmt)
-            latest_job = job_res.scalars().first()
+            latest_job = (await db.execute(job_stmt)).scalars().first()
             if not latest_job:
                 latest_job = IndexingJobModel(
                     repository_id=existing_repo.id,
-                    status="completed",
-                    current_stage="Ready",
-                    progress_pct=100,
+                    status="completed" if existing_repo.status == "ready" else "queued",
+                    current_stage="Ready" if existing_repo.status == "ready" else "Queued",
+                    progress_pct=100 if existing_repo.status == "ready" else 0,
                 )
                 db.add(latest_job)
                 await db.commit()
                 await db.refresh(latest_job)
             return existing_repo, latest_job, True
-
-        # Existing repo needs re-indexing
-        existing_repo.status = "pending"
-        existing_repo.error_message = None
-        new_job = IndexingJobModel(
-            repository_id=existing_repo.id,
-            status="queued",
-            current_stage="Queued for analysis and vector indexing",
-            progress_pct=0,
-            started_at=datetime.now(timezone.utc),
-        )
-        db.add(new_job)
-        await db.commit()
-        await db.refresh(existing_repo)
-        await db.refresh(new_job)
-        return existing_repo, new_job, False
-
-    # Create new repository record
-    new_repo = RepositoryModel(
-        owner=owner,
-        name=name,
-        url=clean_url,
-        status="pending",
-    )
-    db.add(new_repo)
-    await db.flush()
-
-    new_job = IndexingJobModel(
-        repository_id=new_repo.id,
-        status="queued",
-        current_stage="Queued for analysis and vector indexing",
-        progress_pct=0,
-        started_at=datetime.now(timezone.utc),
-    )
-    db.add(new_job)
-    await db.commit()
-    await db.refresh(new_repo)
-    await db.refresh(new_job)
-    return new_repo, new_job, False
 
 
 async def update_job_progress(

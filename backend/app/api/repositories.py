@@ -142,34 +142,43 @@ async def analyze_repository_endpoint(
 
     try:
         from sqlalchemy import func
-        active_jobs_stmt = select(func.count()).select_from(IndexingJobModel).where(
-            IndexingJobModel.status.in_(["processing", "queued"])
+        clean_url = f"https://github.com/{owner}/{name}"
+        existing_stmt = select(RepositoryModel).where(RepositoryModel.url == clean_url)
+        existing_repo = (await db.execute(existing_stmt)).scalar_one_or_none()
+        is_reusing_existing = bool(
+            existing_repo and not req.force_reindex and existing_repo.status in ("ready", "pending", "processing")
         )
-        active_count = (await db.execute(active_jobs_stmt)).scalar_one() or 0
-        if active_count >= settings.MAX_CONCURRENT_INDEXING_JOBS:
-            existing_stmt = select(RepositoryModel).where(
-                RepositoryModel.url == f"https://github.com/{owner}/{name}",
-                RepositoryModel.status == "ready"
+
+        if not is_reusing_existing:
+            active_jobs_stmt = select(func.count()).select_from(IndexingJobModel).where(
+                IndexingJobModel.status.in_(["processing", "queued"])
             )
-            existing_ready = (await db.execute(existing_stmt)).scalar_one_or_none()
-            if not existing_ready or req.force_reindex:
+            active_count = (await db.execute(active_jobs_stmt)).scalar_one() or 0
+            if active_count >= settings.MAX_CONCURRENT_INDEXING_JOBS:
                 raise HTTPException(
                     status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                     detail=f"Maximum concurrent indexing jobs ({settings.MAX_CONCURRENT_INDEXING_JOBS}) reached. Please wait for an active job to finish.",
                 )
 
-        repo, job, is_ready = await get_or_create_repository(
+        repo, job, should_skip_background = await get_or_create_repository(
             repo_url=req.url,
             db=db,
             force_reindex=req.force_reindex,
         )
 
-        if is_ready:
+        if should_skip_background:
+            if repo.status == "ready":
+                return RepositoryAnalyzeResponse(
+                    repository_id=repo.id,
+                    job_id=job.id,
+                    status="completed",
+                    message="Repository is already indexed and ready for exploration.",
+                )
             return RepositoryAnalyzeResponse(
                 repository_id=repo.id,
                 job_id=job.id,
-                status="completed",
-                message="Repository is already indexed and ready for exploration.",
+                status=job.status,
+                message="Repository analysis is already in progress.",
             )
 
         # Trigger background processing task

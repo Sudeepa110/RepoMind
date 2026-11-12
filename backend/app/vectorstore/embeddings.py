@@ -22,6 +22,7 @@ class LocalSentenceTransformerService(BaseEmbeddingService):
     def __init__(self, model_name: Optional[str] = None) -> None:
         self.model_name = model_name or settings.EMBEDDING_MODEL_NAME
         self._model = None
+        self._onnx_fallback = None
         self._device: str = "cpu"
         self._lock = threading.Lock()
         self._dimension = 384  # all-MiniLM-L6-v2 standard dimension
@@ -39,13 +40,20 @@ class LocalSentenceTransformerService(BaseEmbeddingService):
         logger.info("Using local CPU execution for embeddings.")
         return "cpu"
 
+    def _load_onnx_fallback(self) -> None:
+        """Loads Microsoft-signed ONNX Runtime all-MiniLM-L6-v2 fallback when PyTorch DLLs are blocked."""
+        from chromadb.utils.embedding_functions import ONNXMiniLM_L6_V2
+        self._onnx_fallback = ONNXMiniLM_L6_V2()
+        self._device = "cpu (onnx)"
+        logger.info("Loaded ONNX Runtime CPU fallback for all-MiniLM-L6-v2 (384-dim).")
+
     def _load_model(self) -> None:
-        """Loads SentenceTransformer model with graceful GPU->CPU fallback."""
-        if self._model is not None:
+        """Loads SentenceTransformer model with graceful GPU->CPU and ONNX fallback."""
+        if self._model is not None or self._onnx_fallback is not None:
             return
 
         with self._lock:
-            if self._model is not None:
+            if self._model is not None or self._onnx_fallback is not None:
                 return
 
             import os
@@ -53,34 +61,48 @@ class LocalSentenceTransformerService(BaseEmbeddingService):
             os.environ.setdefault("HF_HUB_OFFLINE", "1")
             os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
 
-            from sentence_transformers import SentenceTransformer
-
-            target_device = self._determine_device()
-            logger.info(f"Loading embedding model '{self.model_name}' on device '{target_device}'...")
-
             try:
-                self._model = SentenceTransformer(self.model_name, device=target_device)
-                self._device = target_device
-                logger.info(f"Embedding model '{self.model_name}' successfully loaded on {self._device}.")
+                from sentence_transformers import SentenceTransformer
+
+                target_device = self._determine_device()
+                logger.info(f"Loading embedding model '{self.model_name}' on device '{target_device}'...")
+
+                try:
+                    self._model = SentenceTransformer(self.model_name, device=target_device)
+                    self._device = target_device
+                    logger.info(f"Embedding model '{self.model_name}' successfully loaded on {self._device}.")
+                except Exception as e:
+                    if target_device != "cpu":
+                        logger.warning(f"Failed to load embedding model on {target_device}: {e}. Retrying on CPU.")
+                        self._model = SentenceTransformer(self.model_name, device="cpu")
+                        self._device = "cpu"
+                        logger.info("Embedding model loaded on fallback CPU.")
+                    else:
+                        raise
+            except (OSError, ImportError) as dll_err:
+                logger.warning(
+                    f"PyTorch SentenceTransformer unavailable ({dll_err}). "
+                    "Falling back to CPU ONNX Runtime for all-MiniLM-L6-v2."
+                )
+                self._load_onnx_fallback()
             except Exception as e:
-                if target_device != "cpu":
-                    logger.warning(f"Failed to load embedding model on {target_device}: {e}. Retrying on CPU.")
-                    self._model = SentenceTransformer(self.model_name, device="cpu")
-                    self._device = "cpu"
-                    logger.info("Embedding model loaded on fallback CPU.")
-                else:
-                    logger.error(f"Fatal error loading embedding model on CPU: {e}")
-                    raise
+                logger.error(f"Fatal error loading embedding model on CPU: {e}")
+                raise
 
     @property
     def model(self):
-        if self._model is None:
+        if self._model is None and self._onnx_fallback is None:
             self._load_model()
         return self._model
 
     def embed_text(self, text: str) -> List[float]:
         """Generate a dense embedding vector for a single text query or snippet."""
         clean_text = text.strip() if text else " "
+        if self._model is None and self._onnx_fallback is None:
+            self._load_model()
+        if self._onnx_fallback is not None:
+            vec = self._onnx_fallback([clean_text])[0]
+            return [float(x) for x in vec]
         embedding = self.model.encode(clean_text, convert_to_numpy=True, normalize_embeddings=True)
         return embedding.tolist()
 
@@ -90,6 +112,15 @@ class LocalSentenceTransformerService(BaseEmbeddingService):
             return []
 
         cleaned = [t.strip() if t.strip() else " " for t in texts]
+        if self._model is None and self._onnx_fallback is None:
+            self._load_model()
+        if self._onnx_fallback is not None:
+            all_vecs: List[List[float]] = []
+            for i in range(0, len(cleaned), batch_size):
+                batch = cleaned[i : i + batch_size]
+                vecs = self._onnx_fallback(batch)
+                all_vecs.extend([float(x) for x in v] for v in vecs)
+            return all_vecs
         embeddings = self.model.encode(
             cleaned,
             batch_size=batch_size,
@@ -103,7 +134,7 @@ class LocalSentenceTransformerService(BaseEmbeddingService):
         return self._dimension
 
     def get_device(self) -> str:
-        if self._model is None:
+        if self._model is None and self._onnx_fallback is None:
             self._load_model()
         return self._device
 

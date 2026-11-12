@@ -184,11 +184,13 @@ export const DashboardPreview: React.FC<DashboardPreviewProps> = ({
   // Initialize analysis on load
   useEffect(() => {
     let isMounted = true;
+    let isFinished = false;
     let pollInterval: any = null;
 
     const startAnalysis = async () => {
       try {
         const initRes = await api.analyzeRepository(repoUrl);
+        if (!isMounted) return;
         const repoId = initRes.repository_id;
 
         const checkStatus = async () => {
@@ -198,7 +200,8 @@ export const DashboardPreview: React.FC<DashboardPreviewProps> = ({
             setStatus(st);
 
             if (st.status === 'completed') {
-              clearInterval(pollInterval);
+              isFinished = true;
+              if (pollInterval) clearInterval(pollInterval);
               const [det, tr, vs] = await Promise.all([
                 api.getRepositoryDetails(repoId),
                 api.getRepositoryTree(repoId),
@@ -210,7 +213,8 @@ export const DashboardPreview: React.FC<DashboardPreviewProps> = ({
                 if (vs) setVectorStats(vs);
               }
             } else if (st.status === 'failed') {
-              clearInterval(pollInterval);
+              isFinished = true;
+              if (pollInterval) clearInterval(pollInterval);
               setError(st.error_message || 'Indexing job failed.');
             }
           } catch (pollErr: any) {
@@ -219,7 +223,9 @@ export const DashboardPreview: React.FC<DashboardPreviewProps> = ({
         };
 
         await checkStatus();
-        pollInterval = setInterval(checkStatus, 1500);
+        if (isMounted && !isFinished) {
+          pollInterval = setInterval(checkStatus, 1500);
+        }
       } catch (err: any) {
         if (isMounted) {
           setError(err.response?.data?.detail || err.message || 'Failed to start repository analysis.');
