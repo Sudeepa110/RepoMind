@@ -140,8 +140,8 @@ RepoMind supports **zero-cost optional Gemini configuration**:
 | **Live Real-World Repos** | `pallets/itsdangerous` & `sindresorhus/p-limit` | **5/5** answerable grounded (`1.0` claim support), **5/5** OOS abstained |
 
 Detailed documentation:
-- [Architecture Overview](file:///d:/Repomind/docs/ARCHITECTURE.md)
-- [API Reference](file:///d:/Repomind/docs/API_REFERENCE.md)
-- [Deployment & Environment Guide](file:///d:/Repomind/docs/DEPLOYMENT.md)
-- [Security & Privacy Specifications](file:///d:/Repomind/docs/SECURITY.md)
-- [Phase 10 Empirical Validation Report](file:///d:/Repomind/docs/PHASE_10_PRODUCTION_REPORT.md)
+- [Architecture Overview](docs/ARCHITECTURE.md)
+- [API Reference](docs/API_REFERENCE.md)
+- [Deployment & Environment Guide](docs/DEPLOYMENT.md)
+- [Security & Privacy Specifications](docs/SECURITY.md)
+- [Phase 10 Empirical Validation Report](docs/PHASE_10_PRODUCTION_REPORT.md)

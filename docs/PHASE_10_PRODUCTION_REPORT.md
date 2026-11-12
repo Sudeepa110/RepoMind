@@ -8,7 +8,7 @@ Phase 10 validated RepoMind end-to-end across **Python, TypeScript/JavaScript, a
 
 ## 2. Held-Out Non-Tuning Abstention Evaluation (Step 6A)
 
-To measure generalization without overfitting to Phase 9 tuning cases, a fresh 18-query held-out benchmark ([held_out_abstention_queries.json](file:///d:/Repomind/backend/evaluation/datasets/held_out_abstention_queries.json)) was evaluated **without adjusting any threshold or keyword list afterward**.
+To measure generalization without overfitting to Phase 9 tuning cases, a fresh 18-query held-out benchmark ([held_out_abstention_queries.json](../backend/evaluation/datasets/held_out_abstention_queries.json)) was evaluated **without adjusting any threshold or keyword list afterward**.
 
 ### 2.1 Confusion Matrix & Metrics (Held-Out Set vs. Phase 9.4 Development Set)
 
@@ -42,7 +42,7 @@ Predicted Answer           1 (FN)                 9 (TN)
 
 ## 3. Repository-Wide Endpoint Validation (Step 6B)
 
-`EndpointMatcher` ([endpoint_matcher.py](file:///d:/Repomind/backend/app/retrieval/endpoint_matcher.py)) now performs **full-repository structural route discovery** via `KeywordSearchEngine.get_all_repository_chunks()` rather than relying solely on top-$k$ retrieved snippets:
+`EndpointMatcher` ([endpoint_matcher.py](../backend/app/retrieval/endpoint_matcher.py)) now performs **full-repository structural route discovery** via `KeywordSearchEngine.get_all_repository_chunks()` rather than relying solely on top-$k$ retrieved snippets:
 - Reconstructs file-level sources sorted by line number so split-chunk Spring `@RequestMapping("/owners/{ownerId}")` class prefixes compose cleanly with method-level `@GetMapping`/`@PostMapping` chunks.
 - Resolves cross-file router mounts across **Express** (`app.use('/api/users', userRouter)`), **Flask** (`app.register_blueprint(auth_bp, url_prefix=...)`), and **FastAPI** (`app.include_router(router, prefix=...)`).
 - Verified across **9 unit tests** (`tests/unit/test_endpoint_matcher.py` — **9/9 passing**) and live held-out queries including parameterized Spring PetClinic routes (`POST /owners/42/pets/new`, `GET /owners/10/pets/5/edit`) and negative controls (`DELETE /owners/42/pets/new`, `GET /owners/123/biometric_logs`).
@@ -52,7 +52,7 @@ Predicted Answer           1 (FN)                 9 (TN)
 
 ## 4. Live Unseen Real-World GitHub Repository Validation (Step 6C & 6D)
 
-Executed against two authentic public GitHub repositories never used in Phase 9 tuning via [real_world_e2e_validation.py](file:///d:/Repomind/backend/evaluation/real_world_e2e_validation.py):
+Executed against two authentic public GitHub repositories never used in Phase 9 tuning via [real_world_e2e_validation.py](../backend/evaluation/real_world_e2e_validation.py):
 
 ### 4.1 Python: `pallets/itsdangerous`
 - **Commit Hash**: `672971d66a2ef9f85151e53283113f33d642dabd` (`main`)

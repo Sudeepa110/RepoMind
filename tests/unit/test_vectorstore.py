@@ -41,7 +41,7 @@ def test_embedding_service_dimension_and_batch():
     """Verify local SentenceTransformer embedding output dimension and batch processing."""
     service = LocalSentenceTransformerService()
     assert service.dimension() == 384
-    assert service.get_device() in ("cpu", "cuda")
+    assert service.get_device() in ("cpu", "cuda", "cpu (onnx)")
 
     vec = service.embed_text("def authenticate_user(username, password): pass")
     assert isinstance(vec, list)
